@@ -1,0 +1,20 @@
+import Database from 'better-sqlite3';
+import { mkdirSync } from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const projectRoot=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
+const source=resolve(process.env.AIWORK_DATABASE??resolve(projectRoot,'data/aiwork.db'));
+const backupRoot=resolve(process.env.AIWORK_BACKUP_DIR??resolve(projectRoot,'data/backups'));
+mkdirSync(backupRoot,{recursive:true});
+const stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');
+const destination=resolve(backupRoot,`${basename(source,'.db')}-${stamp}.db`);
+const db=new Database(source,{readonly:true});
+const integrity=db.pragma('integrity_check') as Array<{integrity_check:string}>;
+if(integrity[0]?.integrity_check!=='ok')throw new Error(`SQLite integrity check failed: ${JSON.stringify(integrity)}`);
+await db.backup(destination);
+db.close();
+const check=new Database(destination,{readonly:true});
+const verified=check.pragma('integrity_check') as Array<{integrity_check:string}>;check.close();
+if(verified[0]?.integrity_check!=='ok')throw new Error('Backup verification failed');
+console.log(`Verified backup: ${destination}`);

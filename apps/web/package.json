@@ -1,0 +1,9 @@
+{
+  "name": "@aiwork/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev":"vite", "build":"tsc -b && vite build", "check":"tsc -b --pretty false" },
+  "dependencies": { "@tanstack/react-query":"^5.85.5", "@xyflow/react":"^12.8.4", "lucide-react":"^0.542.0", "react":"^19.1.1", "react-dom":"^19.1.1" },
+  "devDependencies": { "@tailwindcss/vite":"^4.1.12", "@types/react":"^19.1.12", "@types/react-dom":"^19.1.9", "@vitejs/plugin-react":"^5.0.2", "tailwindcss":"^4.1.12", "typescript":"^5.9.2", "vite":"^7.1.3" }
+}

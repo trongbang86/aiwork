@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vite/
+coverage/
+data/
+uploads/
+*.db
+*.db-shm
+*.db-wal
+*.tsbuildinfo
+.env
+apps/api/test-output/
