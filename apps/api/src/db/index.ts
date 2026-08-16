@@ -39,6 +39,7 @@ function seed(db: Sqlite) {
   insert.run('actor_developer', 'Developer Agent', 'developer', 'ai', 'Implement with tests before transitioning to Test.', '["comment","create_child","transition","upload"]');
   insert.run('actor_tester', 'QA Agent', 'tester', 'ai', 'Verify acceptance criteria and record reproducible evidence.', '["comment","transition"]');
   insert.run('actor_release', 'Release Manager', 'release_manager', 'human_or_ai', 'Confirm release readiness and operational safety.', '["comment","transition"]');
+  insert.run('actor_iqprep_bau_testing', 'iqprep.bau.testing', 'developer', 'ai', 'Implement only the IQ Prep parent request described by the story and its inherited context. Preserve parent PIN hashing, four-digit validation, rate limiting, parent elevation, privacy, and audit rules. Never expose or log PINs, hashes, session tokens, or child data. Add focused tests and do not change unrelated learning behavior.', '["comment","create_child","transition"]');
   db.prepare('INSERT OR IGNORE INTO workflows VALUES(?,?,?,?,?)').run('wf_default', 'Default Workflow', null, now, now);
   const state = db.prepare('INSERT OR IGNORE INTO workflow_states VALUES(?,?,?,?,?,?,?)');
   state.run('state_ready','wf_default','ready','Ready',0,'Ensure scope and acceptance criteria are clear.','actor_planner');
@@ -50,6 +51,17 @@ function seed(db: Sqlite) {
   transition.run('tr_progress_test','wf_default','state_progress','state_test',null);
   transition.run('tr_test_progress','wf_default','state_test','state_progress',null);
   transition.run('tr_test_prod','wf_default','state_test','state_production',null);
+  db.prepare('INSERT OR IGNORE INTO workflows VALUES(?,?,?,?,?)').run('wf_iqprep', 'IQ Prep BAU', null, now, now);
+  const iqState = db.prepare('INSERT OR IGNORE INTO workflow_states VALUES(?,?,?,?,?,?,?)');
+  iqState.run('iq_state_ready','wf_iqprep','ready','Ready',0,'Confirm the parent request is actionable and contains no secrets.','actor_planner');
+  iqState.run('iq_state_progress','wf_iqprep','in_progress','In Progress',1,'Prepare an implementation request using the complete inherited AI context.','actor_iqprep_bau_testing');
+  iqState.run('iq_state_test','wf_iqprep','test','Test',2,'Verify parent-gated behavior and regression coverage.','actor_tester');
+  iqState.run('iq_state_production','wf_iqprep','production','Production',3,'Record safe release evidence.','actor_release');
+  const iqTransition = db.prepare('INSERT OR IGNORE INTO workflow_transitions VALUES(?,?,?,?,?)');
+  iqTransition.run('iq_tr_ready_progress','wf_iqprep','iq_state_ready','iq_state_progress',null);
+  iqTransition.run('iq_tr_progress_test','wf_iqprep','iq_state_progress','iq_state_test',null);
+  iqTransition.run('iq_tr_test_progress','wf_iqprep','iq_state_test','iq_state_progress',null);
+  iqTransition.run('iq_tr_test_prod','wf_iqprep','iq_state_test','iq_state_production',null);
   const type = db.prepare('INSERT OR IGNORE INTO work_item_types VALUES(?,?,?,?)');
   ['project','initiative','epic','story','task'].forEach((key, level) => type.run(`type_${key}`,key,key[0]!.toUpperCase()+key.slice(1),level));
   const item = db.prepare('INSERT OR IGNORE INTO work_items VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)');

@@ -16,3 +16,10 @@
 - [ ] Add browser end-to-end tests and accessibility checks.
   - [x] Complete an initial Playwright usability pass with responsive navigation, keyboard-dismissable overlays, and clearer inspector states.
 - [ ] Add production authentication, CSRF policy for cookie sessions, deployment, and HTTPS configuration.
+
+## IQ Prep BAU automation
+
+- [x] Define a dedicated IQ Prep workflow whose In Progress actor is `iqprep.bau.testing`.
+- [ ] Provision the `IQPREP / BAU / Testing` hierarchy idempotently through the worker.
+- [ ] Import each parent feedback request as a story with its immutable source reference.
+- [ ] Transition imported stories only through the transition engine and forward their full `/ai` context to AI.
