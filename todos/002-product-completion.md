@@ -2,10 +2,17 @@
 
 - [ ] Add user, team, role, and project-scoped authorization models.
 - [ ] Add project/work-item/workflow CRUD APIs and forms.
+  - [x] Add project creation and project switching.
+  - [x] Add hierarchy-aware child creation with automatic project keys.
+  - [x] Add work-item search/detail and comment list/create REST flows.
+  - [ ] Add deletion, workflow CRUD, and remaining edit forms.
 - [ ] Persist workflow canvas state and validate graph changes.
 - [ ] Add transition-aware Kanban drag/drop with actionable invalid-drop feedback.
 - [ ] Add full work-item detail editing, comments, child management, and attachment UI.
+  - [x] Add comment reading/writing and context-aware child creation to the React inspector.
+  - [x] Add transition controls and image upload/preview to the React inspector.
 - [ ] Add S3/MinIO storage adapter and signed attachment delivery.
 - [ ] Add PostgreSQL integration profile and migration verification.
 - [ ] Add browser end-to-end tests and accessibility checks.
+  - [x] Complete an initial Playwright usability pass with responsive navigation, keyboard-dismissable overlays, and clearer inspector states.
 - [ ] Add production authentication, CSRF policy for cookie sessions, deployment, and HTTPS configuration.

@@ -34,6 +34,27 @@ describe('AIWork core flows', () => {
     expect((await app.inject(request)).statusCode).toBe(200); const stale=await app.inject(request); expect(stale.statusCode).toBe(412); expect(stale.json().error.code).toBe('STALE_WORK_ITEM');
   });
 
+  it('creates projects, stories, and comments through the documented REST flow', async () => {
+    const auth={authorization:'Bearer dev-token'};
+    const project=await app.inject({method:'POST',url:'/v1/projects',headers:auth,payload:{key:'NEW',title:'New project',aiInstructions:'Project rules'}});
+    expect(project.statusCode).toBe(201); const projectBody=project.json();
+    const story=await app.inject({method:'POST',url:'/v1/work-items',headers:auth,payload:{parentId:projectBody.id,type:'story',title:'First story',description:'Useful detail'}});
+    expect(story.statusCode).toBe(201); expect(story.json()).toMatchObject({key:'NEW-1',type:'story',status:'ready'});
+    const comment=await app.inject({method:'POST',url:`/v1/work-items/${story.json().id}/comments`,headers:auth,payload:{body:'Acceptance evidence'}});
+    expect(comment.statusCode).toBe(200);
+    const found=await app.inject(`/v1/work-items?q=NEW-1`); expect(found.json()).toHaveLength(1);
+    const context=await app.inject(`/v1/work-items/${story.json().id}/ai?mode=full`);expect(context.json().details.comments[0].body).toBe('Acceptance evidence');
+    const comments=await app.inject(`/v1/work-items/${story.json().id}/comments`);expect(comments.json()[0].body).toBe('Acceptance evidence');
+  });
+
+  it('gives an LLM a discoverable, executable story-query flow', async () => {
+    const discovery=(await app.inject('/v1/ai')).json();
+    expect(discovery.entryPoints.listOrSearchWorkItems).toContain('?q=');
+    expect(discovery.suggestedFlow).toContain('GET /v1/work-items/{id}/ai?mode=full');
+    const context=(await app.inject('/v1/work-items/story_demo/ai?mode=full')).json();
+    expect(context.apiSchema.tools.map((tool:{name:string})=>tool.name)).toContain('create_child');
+  });
+
   it('optimizes images and generates all responsive WebP/AVIF variants', async () => {
     const image=await sharp({create:{width:1200,height:800,channels:3,background:'#6750a4'}}).png().toBuffer();
     const boundary='aiworkboundary'; const prefix=Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="sample.png"\r\nContent-Type: image/png\r\n\r\n`); const suffix=Buffer.from(`\r\n--${boundary}--\r\n`);
@@ -43,10 +64,12 @@ describe('AIWork core flows', () => {
   });
 
   it('serves distinct URL-based GUI views', async () => {
-    for (const url of ['/projects','/projects/proj_demo/board','/projects/proj_demo/hierarchy','/work-items/story_demo','/workflows/wf_default/designer']) {
+    for (const url of ['/projects','/search?q=Explore','/projects/proj_demo/board','/projects/proj_demo/hierarchy','/work-items/story_demo','/workflows/wf_default/designer']) {
       const response=await app.inject(url); expect(response.statusCode,url).toBe(200); expect(response.headers['content-type']).toContain('text/html');
     }
-    expect((await app.inject('/projects/proj_demo/board')).body).toContain('Flow board');
+    const board=(await app.inject('/projects/proj_demo/board')).body;
+    expect(board).toContain('Flow board'); expect(board).toContain('Add work item');
+    expect((await app.inject('/search?q=Explore')).body).toContain('DEMO-1');
     expect((await app.inject('/work-items/story_demo')).body).toContain('Effective AI context');
   });
 });

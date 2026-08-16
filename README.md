@@ -15,6 +15,21 @@ The installed Windows service is URL-first and serves HTTPS on port 8446: `/v1/a
 
 Development API authentication uses `Authorization: Bearer dev-token`. Set `AIWORK_API_TOKEN` to replace it.
 
+## REST and agent quick start
+
+Start at `GET /v1/ai`. It describes authentication, searchable entry points, projects, actors, and a suggested story workflow. A client can then:
+
+```text
+GET  /v1/work-items?q=DEMO-1
+GET  /v1/work-items/{id}/ai?mode=full
+POST /v1/work-items/{id}/comments
+POST /v1/work-items/{id}/transition
+```
+
+The full AI response includes inherited instructions, comments, children, attachments, valid next transitions, the current version, and executable tool schemas. Mutations require the bearer token; updates and transitions use `expectedVersion` to prevent lost changes.
+
+Create a project with `POST /v1/projects`, then create initiatives, epics, stories, or tasks with `POST /v1/work-items`. The latter accepts `parentId`, `type`, and `title`; `key` is optional and automatically allocated within the project.
+
 ## Commands
 
 ```powershell
