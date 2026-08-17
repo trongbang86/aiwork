@@ -1,5 +1,10 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+Add-Type -AssemblyName System.Security
+$protected = [Convert]::FromBase64String((Get-Content -Raw (Join-Path $root 'data\api-token.dpapi')).Trim())
+$plain = [Security.Cryptography.ProtectedData]::Unprotect($protected, $null, [Security.Cryptography.DataProtectionScope]::LocalMachine)
+$env:AIWORK_API_TOKEN = [Text.Encoding]::UTF8.GetString($plain)
+[Array]::Clear($plain, 0, $plain.Length)
 $node = 'D:\workspace\.tools\node-v24.19.0-win-x64\node.exe'
 if (!(Test-Path -LiteralPath $node)) { $node = (Get-Command node -ErrorAction Stop).Source }
 $env:NODE_ENV = 'production'
