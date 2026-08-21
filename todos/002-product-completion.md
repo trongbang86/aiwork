@@ -11,6 +11,7 @@
   - [x] Add scoped initiative, epic, and story collection/detail/AI routes.
   - [x] Add separate actor detail and actor AI-instruction endpoints.
   - [x] Add hierarchy-scoped create/update, comment, and picture routes at every level.
+  - [x] Document the hierarchy and actor REST endpoints with curl examples.
   - [ ] Add deletion, workflow CRUD, and remaining edit forms.
 - [ ] Persist workflow canvas state and validate graph changes.
 - [ ] Add transition-aware Kanban drag/drop with actionable invalid-drop feedback.
