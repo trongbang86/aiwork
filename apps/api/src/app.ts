@@ -56,6 +56,12 @@ export function buildApp(options: { database?: string; uploadRoot?: string; http
     const project=sqlite.prepare(`SELECT w.id,w.key,w.title,w.description,w.version,(SELECT count(*) FROM work_items x WHERE x.project_id=w.id) AS itemCount FROM work_items w JOIN work_item_types t ON t.id=w.type_id WHERE t.key='project' AND (w.id=? OR w.key=? COLLATE NOCASE)`).get(id,id);
     return project??reply.code(404).send({error:{code:'PROJECT_NOT_FOUND',message:'Project was not found.',details:{id}}});
   });
+  app.get('/v1/projects/:id/ai', { schema:{tags:['AI','Projects'],summary:'Get project AI instructions by ID or key',params:idParams} }, async(request,reply) => {
+    const {id}=request.params as {id:string};
+    const project=sqlite.prepare(`SELECT w.id,w.key,w.ai_instructions AS aiInstructions FROM work_items w JOIN work_item_types t ON t.id=w.type_id WHERE t.key='project' AND (w.id=? OR w.key=? COLLATE NOCASE)`).get(id,id);
+    return project??reply.code(404).send({error:{code:'PROJECT_NOT_FOUND',message:'Project was not found.',details:{id}}});
+  });
+  app.get('/v1/actors', { schema:{tags:['Actors'],summary:'List actors'} }, async() => sqlite.prepare(`SELECT id,name,role,kind,capabilities_json AS capabilities FROM actors ORDER BY name`).all().map((actor) => ({...(actor as object),capabilities:JSON.parse((actor as {capabilities:string}).capabilities)})));
   app.get('/v1/work-items', { schema:{ tags:['Work items'],summary:'List or search work items',querystring:{type:'object',properties:{projectId:{type:'string'},q:{type:'string'},type:{type:'string'}}} } }, async (request) => {
     const query = request.query as { projectId?:string;q?:string;type?:string }; const search=query.q ? `%${query.q}%` : null;
     return sqlite.prepare(`SELECT w.id,w.key,w.parent_id AS parentId,w.project_id AS projectId,w.title,w.description,w.ai_instructions AS aiInstructions,w.version,t.key AS type,s.key AS status,a.name AS actor FROM work_items w JOIN work_item_types t ON t.id=w.type_id JOIN workflow_states s ON s.id=w.state_id LEFT JOIN actors a ON a.id=w.active_actor_id WHERE (? IS NULL OR w.project_id=?) AND (? IS NULL OR t.key=?) AND (? IS NULL OR w.key LIKE ? OR w.title LIKE ?) ORDER BY t.level,w.created_at`).all(query.projectId??null,query.projectId??null,query.type??null,query.type??null,search,search,search);

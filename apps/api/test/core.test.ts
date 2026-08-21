@@ -66,6 +66,17 @@ describe('AIWork core flows', () => {
     expect(missing.json().error.code).toBe('PROJECT_NOT_FOUND');
   });
 
+  it('exposes project AI instructions separately and lists actors', async () => {
+    const projectAi=await app.inject('/v1/projects/proj_games/ai');
+    expect(projectAi.statusCode).toBe(200);
+    expect(projectAi.json()).toMatchObject({id:'proj_games',key:'GAMES',aiInstructions:expect.any(String)});
+    expect((await app.inject('/v1/projects/GAMES/ai')).json()).toEqual(projectAi.json());
+    expect((await app.inject('/v1/projects/UNKNOWN/ai')).statusCode).toBe(404);
+    const actors=await app.inject('/v1/actors');
+    expect(actors.statusCode).toBe(200);
+    expect(actors.json()).toEqual(expect.arrayContaining([expect.objectContaining({id:'actor_planner',capabilities:expect.any(Array)})]));
+  });
+
   it('gives an LLM a discoverable, executable story-query flow', async () => {
     const discovery=(await app.inject('/v1/ai')).json();
     expect(discovery.entryPoints.listOrSearchWorkItems).toContain('?q=');
