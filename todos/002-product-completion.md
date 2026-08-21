@@ -26,5 +26,6 @@
 ## Kids games automation
 
 - [x] Define a dedicated kids-game workflow and `games.kids.developer` In Progress actor.
+- [x] Seed the `GAMES / New Game` project hierarchy with inherited kids-game instructions.
 - [x] Support worker-provisioned `GAMES / New Game` stories with inherited TypeScript, URL, accessibility, and child-safety instructions.
 - [ ] Transition imported stories only through the transition engine and forward their full `/ai` context to AI.

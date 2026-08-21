@@ -79,4 +79,6 @@ function seed(db: Sqlite) {
   const item = db.prepare('INSERT OR IGNORE INTO work_items VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
   item.run('proj_demo','DEMO','type_project',null,'proj_demo','wf_default','state_ready','AIWork Demo','Starter project','Build securely with strict TypeScript.','actor_planner',1,now,now);
   item.run('story_demo','DEMO-1','type_story','proj_demo','proj_demo','wf_default','state_ready','Explore AI context','Inspect inherited instructions and available tools.','Keep this story concise and verifiable.','actor_planner',1,now,now);
+  item.run('proj_games','GAMES','type_project',null,'proj_games','wf_games','game_state_ready','Kids Games','One independently playable kids game per story.','Work only in D:\\workspace\\games. Develop child-friendly games with strict TypeScript and stable URL-based navigation and assets. Prioritise accessibility, touch and keyboard controls, responsive play, privacy, safety, and automated tests.','actor_planner',1,now,now);
+  item.run('initiative_games_new','GAMES-1','type_initiative','proj_games','proj_games','wf_games','game_state_ready','New Game','Each child story is a new independently playable game.','Keep games age-appropriate, accessible, responsive, safe, and available through a documented URL.','actor_planner',1,now,now);
 }
