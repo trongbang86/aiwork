@@ -55,6 +55,16 @@ describe('AIWork core flows', () => {
     expect(projects[0]).not.toHaveProperty('itemCount');
   });
 
+  it('gets one project by key or ID with its AI instructions', async () => {
+    const byKey=await app.inject('/v1/projects/GAMES');
+    expect(byKey.statusCode).toBe(200);
+    expect(byKey.json()).toMatchObject({id:'proj_games',key:'GAMES',aiInstructions:expect.any(String)});
+    expect((await app.inject('/v1/projects/proj_games')).json()).toEqual(byKey.json());
+    const missing=await app.inject('/v1/projects/UNKNOWN');
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().error.code).toBe('PROJECT_NOT_FOUND');
+  });
+
   it('gives an LLM a discoverable, executable story-query flow', async () => {
     const discovery=(await app.inject('/v1/ai')).json();
     expect(discovery.entryPoints.listOrSearchWorkItems).toContain('?q=');

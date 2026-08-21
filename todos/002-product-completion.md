@@ -6,6 +6,7 @@
   - [x] Add hierarchy-aware child creation with automatic project keys.
   - [x] Add work-item search/detail and comment list/create REST flows.
   - [x] Keep inherited AI instructions and item counts out of project-list summaries.
+  - [x] Add project detail lookup by project key or ID.
   - [ ] Add deletion, workflow CRUD, and remaining edit forms.
 - [ ] Persist workflow canvas state and validate graph changes.
 - [ ] Add transition-aware Kanban drag/drop with actionable invalid-drop feedback.
