@@ -22,4 +22,9 @@
 - [x] Define a dedicated IQ Prep workflow whose In Progress actor is `iqprep.bau.testing`.
 - [ ] Provision the `IQPREP / BAU / Testing` hierarchy idempotently through the worker.
 - [ ] Import each parent feedback request as a story with its immutable source reference.
+
+## Kids games automation
+
+- [x] Define a dedicated kids-game workflow and `games.kids.developer` In Progress actor.
+- [x] Support worker-provisioned `GAMES / New Game` stories with inherited TypeScript, URL, accessibility, and child-safety instructions.
 - [ ] Transition imported stories only through the transition engine and forward their full `/ai` context to AI.

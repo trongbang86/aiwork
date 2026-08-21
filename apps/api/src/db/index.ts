@@ -40,6 +40,7 @@ function seed(db: Sqlite) {
   insert.run('actor_tester', 'QA Agent', 'tester', 'ai', 'Verify acceptance criteria and record reproducible evidence.', '["comment","transition"]');
   insert.run('actor_release', 'Release Manager', 'release_manager', 'human_or_ai', 'Confirm release readiness and operational safety.', '["comment","transition"]');
   insert.run('actor_iqprep_bau_testing', 'iqprep.bau.testing', 'developer', 'ai', 'Implement only the IQ Prep parent request described by the story and its inherited context. Preserve parent PIN hashing, four-digit validation, rate limiting, parent elevation, privacy, and audit rules. Never expose or log PINs, hashes, session tokens, or child data. Add focused tests and do not change unrelated learning behavior.', '["comment","create_child","transition"]');
+  insert.run('actor_games_developer', 'games.kids.developer', 'developer', 'ai', 'Develop the game described by the story for children. Use strict TypeScript and URL-based navigation and assets. Make play age-appropriate, accessible, safe, responsive, and easy to understand. Add focused automated tests and never collect unnecessary child data.', '["comment","create_child","transition","upload"]');
   db.prepare('INSERT OR IGNORE INTO workflows VALUES(?,?,?,?,?)').run('wf_default', 'Default Workflow', null, now, now);
   const state = db.prepare('INSERT OR IGNORE INTO workflow_states VALUES(?,?,?,?,?,?,?)');
   state.run('state_ready','wf_default','ready','Ready',0,'Ensure scope and acceptance criteria are clear.','actor_planner');
@@ -62,6 +63,17 @@ function seed(db: Sqlite) {
   iqTransition.run('iq_tr_progress_test','wf_iqprep','iq_state_progress','iq_state_test',null);
   iqTransition.run('iq_tr_test_progress','wf_iqprep','iq_state_test','iq_state_progress',null);
   iqTransition.run('iq_tr_test_prod','wf_iqprep','iq_state_test','iq_state_production',null);
+  db.prepare('INSERT OR IGNORE INTO workflows VALUES(?,?,?,?,?)').run('wf_games', 'Kids Game Development', null, now, now);
+  const gameState = db.prepare('INSERT OR IGNORE INTO workflow_states VALUES(?,?,?,?,?,?,?)');
+  gameState.run('game_state_ready','wf_games','ready','Ready',0,'Confirm the game idea, audience, controls, and success criteria.','actor_planner');
+  gameState.run('game_state_progress','wf_games','in_progress','In Progress',1,'Build a tested TypeScript game using URL-based navigation and assets.','actor_games_developer');
+  gameState.run('game_state_test','wf_games','test','Test',2,'Play-test accessibility, safety, controls, and age-appropriate behavior.','actor_tester');
+  gameState.run('game_state_production','wf_games','production','Production',3,'Record the playable URL and release evidence.','actor_release');
+  const gameTransition = db.prepare('INSERT OR IGNORE INTO workflow_transitions VALUES(?,?,?,?,?)');
+  gameTransition.run('game_tr_ready_progress','wf_games','game_state_ready','game_state_progress',null);
+  gameTransition.run('game_tr_progress_test','wf_games','game_state_progress','game_state_test',null);
+  gameTransition.run('game_tr_test_progress','wf_games','game_state_test','game_state_progress',null);
+  gameTransition.run('game_tr_test_prod','wf_games','game_state_test','game_state_production',null);
   const type = db.prepare('INSERT OR IGNORE INTO work_item_types VALUES(?,?,?,?)');
   ['project','initiative','epic','story','task'].forEach((key, level) => type.run(`type_${key}`,key,key[0]!.toUpperCase()+key.slice(1),level));
   const item = db.prepare('INSERT OR IGNORE INTO work_items VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
