@@ -53,7 +53,7 @@ export function buildApp(options: { database?: string; uploadRoot?: string; http
   app.get('/v1/projects',{schema:{tags:['Projects'],summary:'List projects'}},async()=>sqlite.prepare(`SELECT w.id,w.key,w.title,w.description,w.version FROM work_items w JOIN work_item_types t ON t.id=w.type_id WHERE t.key='project' ORDER BY w.created_at`).all());
   app.get('/v1/projects/:id', { schema:{tags:['Projects'],summary:'Get a project by ID or key',params:idParams} }, async(request,reply) => {
     const {id}=request.params as {id:string};
-    const project=sqlite.prepare(`SELECT w.id,w.key,w.title,w.description,w.ai_instructions AS aiInstructions,w.version FROM work_items w JOIN work_item_types t ON t.id=w.type_id WHERE t.key='project' AND (w.id=? OR w.key=? COLLATE NOCASE)`).get(id,id);
+    const project=sqlite.prepare(`SELECT w.id,w.key,w.title,w.description,w.version,(SELECT count(*) FROM work_items x WHERE x.project_id=w.id) AS itemCount FROM work_items w JOIN work_item_types t ON t.id=w.type_id WHERE t.key='project' AND (w.id=? OR w.key=? COLLATE NOCASE)`).get(id,id);
     return project??reply.code(404).send({error:{code:'PROJECT_NOT_FOUND',message:'Project was not found.',details:{id}}});
   });
   app.get('/v1/work-items', { schema:{ tags:['Work items'],summary:'List or search work items',querystring:{type:'object',properties:{projectId:{type:'string'},q:{type:'string'},type:{type:'string'}}} } }, async (request) => {

@@ -55,10 +55,11 @@ describe('AIWork core flows', () => {
     expect(projects[0]).not.toHaveProperty('itemCount');
   });
 
-  it('gets one project by key or ID with its AI instructions', async () => {
+  it('gets one project by key or ID with its item count but no AI instructions', async () => {
     const byKey=await app.inject('/v1/projects/GAMES');
     expect(byKey.statusCode).toBe(200);
-    expect(byKey.json()).toMatchObject({id:'proj_games',key:'GAMES',aiInstructions:expect.any(String)});
+    expect(byKey.json()).toMatchObject({id:'proj_games',key:'GAMES',itemCount:2});
+    expect(byKey.json()).not.toHaveProperty('aiInstructions');
     expect((await app.inject('/v1/projects/proj_games')).json()).toEqual(byKey.json());
     const missing=await app.inject('/v1/projects/UNKNOWN');
     expect(missing.statusCode).toBe(404);
