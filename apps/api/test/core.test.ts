@@ -47,6 +47,14 @@ describe('AIWork core flows', () => {
     const comments=await app.inject(`/v1/work-items/${story.json().id}/comments`);expect(comments.json()[0].body).toBe('Acceptance evidence');
   });
 
+  it('does not expose AI instructions in the project list', async () => {
+    const projects=(await app.inject('/v1/projects')).json() as Record<string,unknown>[];
+    expect(projects.length).toBeGreaterThan(0);
+    expect(projects[0]).toMatchObject({id:'proj_demo',key:'DEMO',title:'AIWork Demo'});
+    expect(projects[0]).not.toHaveProperty('aiInstructions');
+    expect(projects[0]).not.toHaveProperty('itemCount');
+  });
+
   it('gives an LLM a discoverable, executable story-query flow', async () => {
     const discovery=(await app.inject('/v1/ai')).json();
     expect(discovery.entryPoints.listOrSearchWorkItems).toContain('?q=');
