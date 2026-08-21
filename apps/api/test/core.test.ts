@@ -77,6 +77,52 @@ describe('AIWork core flows', () => {
     expect(actors.json()).toEqual(expect.arrayContaining([expect.objectContaining({id:'actor_planner',capabilities:expect.any(Array)})]));
   });
 
+  it('separates actor metadata from actor AI instructions', async () => {
+    const actor=await app.inject('/v1/actors/actor_developer');
+    expect(actor.statusCode).toBe(200);
+    expect(actor.json()).toMatchObject({id:'actor_developer',capabilities:expect.any(Array)});
+    expect(actor.json()).not.toHaveProperty('aiInstructions');
+    expect(actor.json()).not.toHaveProperty('instructions');
+    const actorAi=await app.inject('/v1/actors/actor_developer/ai');
+    expect(actorAi.statusCode).toBe(200);
+    expect(actorAi.json()).toMatchObject({id:'actor_developer',aiInstructions:expect.any(String)});
+    expect((await app.inject('/v1/actors/UNKNOWN')).statusCode).toBe(404);
+    expect((await app.inject('/v1/actors/UNKNOWN/ai')).statusCode).toBe(404);
+  });
+
+  it('navigates initiatives, epics, and stories with separate AI endpoints', async () => {
+    const db=(app as unknown as {sqlite:import('better-sqlite3').Database}).sqlite;const now=new Date().toISOString();
+    const insert=db.prepare('INSERT INTO work_items VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    insert.run('epic_games','GAMES-2','type_epic','initiative_games_new','proj_games','wf_games','game_state_ready','Arcade epic',null,'Epic rules','actor_planner',1,now,now);
+    insert.run('story_games','GAMES-3','type_story','epic_games','proj_games','wf_games','game_state_ready','Puzzle story',null,'Story rules','actor_planner',1,now,now);
+    const initiativeBase='/v1/projects/GAMES/initiatives';
+    expect((await app.inject(initiativeBase)).json()).toEqual(expect.arrayContaining([expect.objectContaining({id:'initiative_games_new'})]));
+    expect((await app.inject(`${initiativeBase}/GAMES-1`)).json()).toMatchObject({id:'initiative_games_new',itemCount:1});
+    expect((await app.inject(`${initiativeBase}/GAMES-1/ai`)).json()).toMatchObject({aiInstructions:expect.any(String)});
+    const epicBase=`${initiativeBase}/GAMES-1/epics`;
+    expect((await app.inject(epicBase)).json()).toEqual([expect.objectContaining({id:'epic_games'})]);
+    expect((await app.inject(`${epicBase}/GAMES-2`)).json()).toMatchObject({itemCount:1});
+    expect((await app.inject(`${epicBase}/GAMES-2/ai`)).json()).toMatchObject({aiInstructions:'Epic rules'});
+    const storyBase=`${epicBase}/GAMES-2/stories`;
+    expect((await app.inject(storyBase)).json()).toEqual([expect.objectContaining({id:'story_games'})]);
+    expect((await app.inject(`${storyBase}/GAMES-3`)).json()).toMatchObject({itemCount:0});
+    expect((await app.inject(`${storyBase}/GAMES-3/ai`)).json()).toMatchObject({aiInstructions:'Story rules'});
+    expect((await app.inject('/v1/projects/DEMO/initiatives/GAMES-1')).statusCode).toBe(404);
+  });
+
+  it('creates and updates hierarchy resources with comments and pictures', async () => {
+    const auth={authorization:'Bearer dev-token'};
+    const initiative=await app.inject({method:'POST',url:'/v1/projects/DEMO/initiatives',headers:auth,payload:{title:'Delivery'}});expect(initiative.statusCode).toBe(201);
+    const path=`/v1/projects/DEMO/initiatives/${initiative.json().id}`;
+    const updated=await app.inject({method:'PUT',url:path,headers:auth,payload:{title:'Delivery updated',expectedVersion:1}});expect(updated.json().version).toBe(2);
+    expect((await app.inject({method:'POST',url:`${path}/comments`,headers:auth,payload:{body:'Scoped comment'}})).statusCode).toBe(200);
+    expect((await app.inject(`${path}/comments`)).json()[0].body).toBe('Scoped comment');
+    const image=await sharp({create:{width:20,height:20,channels:3,background:'#123456'}}).png().toBuffer(),boundary='pictureboundary';
+    const payload=Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="pic.png"\r\nContent-Type: image/png\r\n\r\n`),image,Buffer.from(`\r\n--${boundary}--\r\n`)]);
+    expect((await app.inject({method:'POST',url:`${path}/pictures`,headers:{...auth,'content-type':`multipart/form-data; boundary=${boundary}`},payload})).statusCode).toBe(201);
+    expect((await app.inject(`${path}/pictures`)).json()).toHaveLength(1);
+  });
+
   it('gives an LLM a discoverable, executable story-query flow', async () => {
     const discovery=(await app.inject('/v1/ai')).json();
     expect(discovery.entryPoints.listOrSearchWorkItems).toContain('?q=');

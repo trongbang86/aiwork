@@ -8,6 +8,9 @@
   - [x] Keep inherited AI instructions and item counts out of project-list summaries.
   - [x] Add project detail lookup by project key or ID with item counts and without inherited AI instructions.
   - [x] Add separate project AI-instruction lookup and actor-list endpoints.
+  - [x] Add scoped initiative, epic, and story collection/detail/AI routes.
+  - [x] Add separate actor detail and actor AI-instruction endpoints.
+  - [x] Add hierarchy-scoped create/update, comment, and picture routes at every level.
   - [ ] Add deletion, workflow CRUD, and remaining edit forms.
 - [ ] Persist workflow canvas state and validate graph changes.
 - [ ] Add transition-aware Kanban drag/drop with actionable invalid-drop feedback.
