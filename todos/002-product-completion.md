@@ -19,6 +19,7 @@
 - [ ] Add full work-item detail editing, comments, child management, and attachment UI.
   - [x] Add comment reading/writing and context-aware child creation to the React inspector.
   - [x] Add transition controls and image upload/preview to the React inspector.
+  - [x] Add workflow transition controls to the installed URL-first work-item page.
 - [ ] Add S3/MinIO storage adapter and signed attachment delivery.
 - [ ] Add PostgreSQL integration profile and migration verification.
 - [ ] Add browser end-to-end tests and accessibility checks.
