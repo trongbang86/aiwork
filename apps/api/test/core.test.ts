@@ -27,7 +27,17 @@ describe('AIWork core flows', () => {
 
   it('rejects invalid transitions with actionable details', async () => {
     const response=await app.inject({method:'POST',url:'/v1/work-items/story_demo/transition',headers:{authorization:'Bearer dev-token'},payload:{toState:'production',expectedVersion:1}});
-    expect(response.statusCode).toBe(400); expect(response.json().error).toMatchObject({code:'INVALID_WORKFLOW_TRANSITION',details:{allowedTransitions:['in_progress']}});
+    expect(response.statusCode).toBe(400); expect(response.json().error).toMatchObject({code:'INVALID_WORKFLOW_TRANSITION',details:{allowedTransitions:['in_progress','cancelled']}});
+  });
+
+  it('allows cancellation without activating an execution actor and supports reopening', async () => {
+    const auth={authorization:'Bearer dev-token'};
+    const cancelled=await app.inject({method:'POST',url:'/v1/work-items/story_demo/transition',headers:auth,payload:{toState:'cancelled',expectedVersion:1}});
+    expect(cancelled.statusCode).toBe(200); expect(cancelled.json()).toMatchObject({state:'cancelled',version:2});
+    const context=(await app.inject('/v1/work-items/story_demo/ai?mode=full')).json();
+    expect(context.availableActions).toEqual([{action:'transition',toState:'ready'}]);
+    const reopened=await app.inject({method:'POST',url:'/v1/work-items/story_demo/transition',headers:auth,payload:{toState:'ready',expectedVersion:2}});
+    expect(reopened.statusCode).toBe(200); expect(reopened.json()).toMatchObject({state:'ready',version:3});
   });
 
   it('rejects stale optimistic updates', async () => {
