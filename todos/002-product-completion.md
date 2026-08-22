@@ -12,6 +12,7 @@
   - [x] Add separate actor detail and actor AI-instruction endpoints.
   - [x] Add hierarchy-scoped create/update, comment, and picture routes at every level.
   - [x] Document the hierarchy and actor REST endpoints with curl examples.
+  - [x] Connect the installed GUI to scoped edit, comment, and picture endpoints.
   - [ ] Add deletion, workflow CRUD, and remaining edit forms.
 - [ ] Persist workflow canvas state and validate graph changes.
 - [ ] Add transition-aware Kanban drag/drop with actionable invalid-drop feedback.

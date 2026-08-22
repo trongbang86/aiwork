@@ -147,5 +147,11 @@ describe('AIWork core flows', () => {
     expect(board).toContain('Flow board'); expect(board).toContain('Add work item');
     expect((await app.inject('/search?q=Explore')).body).toContain('DEMO-1');
     expect((await app.inject('/work-items/story_demo')).body).toContain('Effective AI context');
+    const projectPage=(await app.inject('/work-items/proj_games')).body;
+    expect(projectPage).toContain('data-endpoint="/v1/projects/GAMES" data-method="PUT"');
+    expect(projectPage).toContain('data-endpoint="/v1/projects/GAMES/comments"');
+    expect(projectPage).toContain('data-endpoint="/v1/projects/GAMES/pictures" data-encoding="multipart"');
+    const initiativePage=(await app.inject('/work-items/initiative_games_new')).body;
+    expect(initiativePage).toContain('/v1/projects/GAMES/initiatives/GAMES-1/comments');
   });
 });
