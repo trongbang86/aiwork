@@ -13,7 +13,7 @@ export class AiContextService {
         UNION ALL
         SELECT w.id,w.parent_id,w.type_id,w.ai_instructions,a.distance+1 FROM work_items w JOIN ancestors a ON w.id=a.parent_id
       )
-      SELECT w.id,w.key,w.title,w.description,w.version,t.key AS type,s.key AS status,s.instructions AS state_instructions,
+      SELECT w.id,w.key,w.title,w.description,w.ai_instructions,w.version,t.key AS type,s.key AS status,s.instructions AS state_instructions,
              a.id AS actor_id,a.name AS actor_name,a.role,a.instructions AS actor_instructions,a.capabilities_json,
              (SELECT json_group_array(json_object('id',x.id,'level',xt.key,'instructions',x.ai_instructions,'distance',x.distance))
                 FROM ancestors x JOIN work_item_types xt ON xt.id=x.type_id WHERE x.ai_instructions IS NOT NULL AND trim(x.ai_instructions)<>'') AS provenance_json,
@@ -34,7 +34,7 @@ export class AiContextService {
     const budgeted = this.applyBudget(provenance, maxTokens);
     const actions = (JSON.parse(String(row.transitions_json ?? '[]')) as string[]).map((toState) => ({ action: 'transition', toState }));
     const response: Record<string, unknown> = {
-      workItem: { id: row.id, key: row.key, type: row.type, title: row.title, status: row.status, version: row.version },
+      workItem: { id: row.id, key: row.key, type: row.type, title: row.title, aiInstructions: row.ai_instructions, status: row.status, version: row.version },
       context: { provenance: budgeted },
       effectiveInstructions: budgeted.map((p) => `[${p.level}:${p.id}]\n${p.instructions}`).join('\n\n'),
       availableActions: actions,
