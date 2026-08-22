@@ -3,9 +3,10 @@ import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import { randomUUID } from 'node:crypto';
+import { createHmac,randomBytes,randomUUID,timingSafeEqual } from 'node:crypto';
 import { resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import type { ServerOptions } from 'node:https';
 import { createDatabase } from './db/index.js';
 import { AiContextService } from './services/ai-context.js';
@@ -23,6 +24,9 @@ export function buildApp(options: { database?: string; uploadRoot?: string; http
   const workflows = new WorkflowService(sqlite);
   const uploadRoot = resolve(options.uploadRoot ?? 'uploads');
   const files = new AttachmentService(new LocalStorage(uploadRoot));
+  const sessions=new Map<string,{user:string;csrf:string;expiresAt:number}>();
+  const cookie=(header:string|undefined)=>(header??'').split(';').map(x=>x.trim().split('=')).reduce<Record<string,string>>((all,[key,value])=>{if(key)all[key]=decodeURIComponent(value??'');return all;},{});
+  const browserSession=(header:string|undefined)=>{const token=cookie(header).aiwork_sid,session=token?sessions.get(token):undefined;if(!session||session.expiresAt<Date.now()){if(token)sessions.delete(token);return undefined;}return session;};
   app.decorate('sqlite', sqlite);
 
   app.register(cors, { origin: process.env.AIWORK_ORIGIN ?? 'http://localhost:5173' });
@@ -33,7 +37,9 @@ export function buildApp(options: { database?: string; uploadRoot?: string; http
   app.addHook('preHandler', async (request, reply) => {
     if (['POST','PUT','PATCH','DELETE'].includes(request.method)) {
       const token = request.headers.authorization?.replace(/^Bearer\s+/i,'');
-      if (token !== (process.env.AIWORK_API_TOKEN ?? 'dev-token')) return reply.code(401).send({ error:{ code:'UNAUTHENTICATED',message:'A valid bearer token is required.',details:{} } });
+      const session=browserSession(request.headers.cookie),csrf=request.headers['x-aiwork-csrf'];
+      const sessionAuthorized=session&&typeof csrf==='string'&&csrf.length===session.csrf.length&&timingSafeEqual(Buffer.from(csrf),Buffer.from(session.csrf));
+      if (token !== (process.env.AIWORK_API_TOKEN ?? 'dev-token')&&!sessionAuthorized) return reply.code(401).send({ error:{ code:'UNAUTHENTICATED',message:'Sign in through Workspace Admin or supply a valid bearer token.',details:{} } });
     }
   });
   app.setErrorHandler((error, _request, reply) => {
@@ -45,6 +51,7 @@ export function buildApp(options: { database?: string; uploadRoot?: string; http
   app.addHook('onClose', async () => sqlite.close());
 
   app.get('/health', async () => ({ status:'ok' }));
+  app.get('/auth/callback',async(request,reply)=>{const ticket=(request.query as {ticket?:string}).ticket??'',separator=ticket.lastIndexOf('.');if(separator<1)return reply.code(403).send('Invalid or expired login ticket');const payload=ticket.slice(0,separator),signature=ticket.slice(separator+1);let secret:Buffer;try{secret=readFileSync(process.env.AIWORK_SSO_SECRET_PATH??'data/sso-secret');}catch{return reply.code(503).send('AIWork SSO is not configured');}const expected=createHmac('sha256',secret).update(payload).digest('base64url');if(signature.length!==expected.length||!timingSafeEqual(Buffer.from(signature),Buffer.from(expected)))return reply.code(403).send('Invalid or expired login ticket');let value:{user?:string;exp?:number};try{value=JSON.parse(Buffer.from(payload,'base64url').toString('utf8')) as {user?:string;exp?:number};}catch{return reply.code(403).send('Invalid or expired login ticket');}if(!value.user||!value.exp||value.exp<Date.now())return reply.code(403).send('Invalid or expired login ticket');const token=randomBytes(32).toString('base64url'),csrf=randomBytes(24).toString('base64url');sessions.set(token,{user:value.user,csrf,expiresAt:Date.now()+8*3600000});return reply.header('set-cookie',[`aiwork_sid=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800`,`aiwork_csrf=${csrf}; Secure; SameSite=Strict; Path=/; Max-Age=28800`]).redirect('/projects');});
   app.get('/v1/ai', { schema:{ tags:['AI'], summary:'Discover AIWork capabilities' } }, async () => {
     const projects = sqlite.prepare(`SELECT id,key,title FROM work_items WHERE parent_id IS NULL`).all();
     const actors = sqlite.prepare(`SELECT id,name,role,kind,capabilities_json AS capabilities FROM actors`).all().map((a) => ({...(a as object), capabilities:JSON.parse((a as {capabilities:string}).capabilities)}));
@@ -129,7 +136,7 @@ export function buildApp(options: { database?: string; uploadRoot?: string; http
     try{sqlite.transaction(()=>{sqlite.prepare('INSERT INTO work_items VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,body.key,'type_project',null,id,workflowId,initial.id,body.title,body.description??null,body.aiInstructions??null,initial.actor_id,1,now,now);sqlite.prepare('INSERT INTO audit_events VALUES(?,?,?,?,?,?,?,?,?,?)').run(randomUUID(),id,null,'dev-user','project.create',null,null,request.id,'{}',now);})();}catch(error){if(String(error).includes('UNIQUE'))throw new DomainError(409,'WORK_ITEM_KEY_EXISTS','That key is already in use.',{key:body.key});throw error;}return reply.code(201).send({id,key:body.key,type:'project',version:1});
   });
   app.post('/v1/work-items', { schema:{tags:['Work items'],summary:'Create a child work item',security:[{bearerAuth:[]}],body:{type:'object',additionalProperties:false,required:['parentId','type','title'],properties:{parentId:{type:'string'},type:{type:'string',enum:['initiative','epic','story','task','Initiative','Epic','Story','Task']},key:{type:'string',minLength:1},title:{type:'string',minLength:1},description:{type:'string'},aiInstructions:{type:'string'}}}} }, async(request,reply)=>{
-    const body=request.body as {parentId:string;type:string;key?:string;title:string;description?:string;aiInstructions?:string};body.type=body.type.toLowerCase(); const parent=sqlite.prepare(`SELECT w.*,t.level parent_level FROM work_items w JOIN work_item_types t ON t.id=w.type_id WHERE w.id=?`).get(body.parentId) as Record<string,unknown>|undefined;if(!parent)throw new DomainError(400,'PARENT_NOT_FOUND','Parent work item was not found.',{parentId:body.parentId});const type=sqlite.prepare('SELECT id,level FROM work_item_types WHERE key=?').get(body.type) as {id:string;level:number};if(type.level<=Number(parent.parent_level))throw new DomainError(400,'INVALID_HIERARCHY','Child type must be below its parent type.',{parentTypeLevel:parent.parent_level,childType:body.type});
+    const body=request.body as {parentId:string;type:string;key?:string;title:string;description?:string;aiInstructions?:string};body.type=body.type.toLowerCase(); const parent=sqlite.prepare(`SELECT w.*,t.level parent_level FROM work_items w JOIN work_item_types t ON t.id=w.type_id WHERE w.id=?`).get(body.parentId) as Record<string,unknown>|undefined;if(!parent)throw new DomainError(400,'PARENT_NOT_FOUND','Parent work item was not found.',{parentId:body.parentId});const type=sqlite.prepare('SELECT id,level FROM work_item_types WHERE key=?').get(body.type) as {id:string;level:number}|undefined;if(!type||type.level!==Number(parent.parent_level)+1)throw new DomainError(400,'INVALID_HIERARCHY','Child type must be the next level below its parent.',{parentTypeLevel:parent.parent_level,childType:body.type});
     const id=randomUUID(),now=new Date().toISOString(),key=body.key??nextKey(sqlite,String(parent.project_id));const initial=sqlite.prepare('SELECT id,actor_id FROM workflow_states WHERE workflow_id=? ORDER BY position LIMIT 1').get(parent.workflow_id) as {id:string;actor_id:string|null};
     try{sqlite.transaction(()=>{sqlite.prepare('INSERT INTO work_items VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,key,type.id,body.parentId,parent.project_id,parent.workflow_id,initial.id,body.title,body.description??null,body.aiInstructions??null,initial.actor_id,1,now,now);sqlite.prepare('INSERT INTO audit_events VALUES(?,?,?,?,?,?,?,?,?,?)').run(randomUUID(),id,null,'dev-user','work_item.create',null,null,request.id,JSON.stringify({parentId:body.parentId,type:body.type}),now);})();}catch(error){if(String(error).includes('UNIQUE'))throw new DomainError(409,'WORK_ITEM_KEY_EXISTS','That key is already in use.',{key});throw error;}return reply.code(201).send({id,key,parentId:body.parentId,projectId:parent.project_id,type:body.type,status:'ready',version:1});
   });

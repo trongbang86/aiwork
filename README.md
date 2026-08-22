@@ -13,7 +13,7 @@ The API listens on `http://localhost:4300` and its OpenAPI UI is at `/docs`. The
 
 The installed Windows service is URL-first and serves HTTPS on port 8446: `/v1/ai` for agent discovery, `/docs` for OpenAPI documentation, and `/health` for monitoring. The React client is development-only.
 
-Development API authentication uses `Authorization: Bearer dev-token`. Set `AIWORK_API_TOKEN` to replace it.
+Development API authentication uses `Authorization: Bearer dev-token`. Set `AIWORK_API_TOKEN` to replace it. In production, open AIWork through Workspace Admin: Admin SSO creates a secure browser session, so GUI users do not enter or handle the API bearer token. GUI mutations include a CSRF token automatically.
 
 ## REST and agent quick start
 
@@ -56,7 +56,7 @@ GET/POST {detail-url}/comments
 GET/POST {detail-url}/pictures
 ```
 
-All `POST` and `PUT` requests require bearer authentication and are audited. Picture creation accepts one multipart image. Examples for the installed self-signed HTTPS service:
+All `POST` and `PUT` requests require either an Admin SSO browser session with CSRF validation or bearer authentication, and are audited. Picture creation accepts one multipart image. Examples for the installed self-signed HTTPS service:
 
 ```powershell
 curl.exe -k https://localhost:8446/v1/projects/proj_games

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import sharp from 'sharp';
-import { mkdtemp, readdir } from 'node:fs/promises';
+import { mkdtemp, readdir,writeFile } from 'node:fs/promises';
+import { createHmac } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildApp } from '../src/app.js';
@@ -38,11 +39,13 @@ describe('AIWork core flows', () => {
     const auth={authorization:'Bearer dev-token'};
     const project=await app.inject({method:'POST',url:'/v1/projects',headers:auth,payload:{key:'NEW',title:'New project',aiInstructions:'Project rules'}});
     expect(project.statusCode).toBe(201); const projectBody=project.json();
-    const story=await app.inject({method:'POST',url:'/v1/work-items',headers:auth,payload:{parentId:projectBody.id,type:'story',title:'First story',description:'Useful detail'}});
-    expect(story.statusCode).toBe(201); expect(story.json()).toMatchObject({key:'NEW-1',type:'story',status:'ready'});
+    const initiative=await app.inject({method:'POST',url:'/v1/work-items',headers:auth,payload:{parentId:projectBody.id,type:'initiative',title:'Initiative'}});
+    const epic=await app.inject({method:'POST',url:'/v1/work-items',headers:auth,payload:{parentId:initiative.json().id,type:'epic',title:'Epic'}});
+    const story=await app.inject({method:'POST',url:'/v1/work-items',headers:auth,payload:{parentId:epic.json().id,type:'story',title:'First story',description:'Useful detail'}});
+    expect(story.statusCode).toBe(201); expect(story.json()).toMatchObject({key:'NEW-3',type:'story',status:'ready'});
     const comment=await app.inject({method:'POST',url:`/v1/work-items/${story.json().id}/comments`,headers:auth,payload:{body:'Acceptance evidence'}});
     expect(comment.statusCode).toBe(200);
-    const found=await app.inject(`/v1/work-items?q=NEW-1`); expect(found.json()).toHaveLength(1);
+    const found=await app.inject(`/v1/work-items?q=NEW-3`); expect(found.json()).toHaveLength(1);
     const context=await app.inject(`/v1/work-items/${story.json().id}/ai?mode=full`);expect(context.json().details.comments[0].body).toBe('Acceptance evidence');
     const comments=await app.inject(`/v1/work-items/${story.json().id}/comments`);expect(comments.json()[0].body).toBe('Acceptance evidence');
   });
@@ -88,6 +91,15 @@ describe('AIWork core flows', () => {
     expect(actorAi.json()).toMatchObject({id:'actor_developer',aiInstructions:expect.any(String)});
     expect((await app.inject('/v1/actors/UNKNOWN')).statusCode).toBe(404);
     expect((await app.inject('/v1/actors/UNKNOWN/ai')).statusCode).toBe(404);
+  });
+
+  it('uses an Admin SSO session for GUI mutations without a bearer token', async () => {
+    const secret=Buffer.from('test-aiwork-sso-secret');const secretPath=join(output,'sso-secret');await writeFile(secretPath,secret);process.env.AIWORK_SSO_SECRET_PATH=secretPath;
+    const payload=Buffer.from(JSON.stringify({user:'owner',exp:Date.now()+30_000,nonce:'test'})).toString('base64url'),signature=createHmac('sha256',secret).update(payload).digest('base64url');
+    const callback=await app.inject({url:`/auth/callback?ticket=${payload}.${signature}`});expect(callback.statusCode).toBe(302);
+    const setCookie=callback.headers['set-cookie'] as unknown as string[];const cookies=Array.isArray(setCookie)?setCookie:[String(setCookie)];const sid=cookies.find(x=>x.startsWith('aiwork_sid='))!.split(';')[0]!,csrfCookie=cookies.find(x=>x.startsWith('aiwork_csrf='))!.split(';')[0]!,csrf=csrfCookie.split('=')[1]!;
+    const created=await app.inject({method:'POST',url:'/v1/projects',headers:{cookie:`${sid}; ${csrfCookie}`,'x-aiwork-csrf':csrf},payload:{key:'SSO',title:'SSO project'}});expect(created.statusCode).toBe(201);
+    delete process.env.AIWORK_SSO_SECRET_PATH;
   });
 
   it('navigates initiatives, epics, and stories with separate AI endpoints', async () => {
@@ -153,5 +165,7 @@ describe('AIWork core flows', () => {
     expect(projectPage).toContain('data-endpoint="/v1/projects/GAMES/pictures" data-encoding="multipart"');
     const initiativePage=(await app.inject('/work-items/initiative_games_new')).body;
     expect(initiativePage).toContain('/v1/projects/GAMES/initiatives/GAMES-1/comments');
+    expect(initiativePage).not.toContain('Enter your AIWork API token');
+    expect(initiativePage).toContain('/admin/sso/aiwork');
   });
 });

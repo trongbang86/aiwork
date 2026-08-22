@@ -14,6 +14,7 @@ $env:AIWORK_DATABASE = Join-Path $root 'data\aiwork.db'
 $env:AIWORK_TLS_CERT = 'D:\workspace\iqprep\data\tls\iqprep.crt'
 $env:AIWORK_TLS_KEY = 'D:\workspace\iqprep\data\tls\iqprep.key'
 $env:AIWORK_ORIGIN = 'https://192.168.0.50:8446'
+$env:AIWORK_SSO_SECRET_PATH = Join-Path $root 'data\sso-secret'
 Set-Location $root
 & $node (Join-Path $root 'apps\api\dist\src\server.js')
 exit $LASTEXITCODE

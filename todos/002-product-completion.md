@@ -24,6 +24,8 @@
 - [ ] Add browser end-to-end tests and accessibility checks.
   - [x] Complete an initial Playwright usability pass with responsive navigation, keyboard-dismissable overlays, and clearer inspector states.
 - [ ] Add production authentication, CSRF policy for cookie sessions, deployment, and HTTPS configuration.
+  - [x] Add Admin SSO-backed GUI sessions with double-submit CSRF checks while retaining bearer API authentication.
+  - [x] Enforce the exact project → initiative → epic → story → task hierarchy in API and GUI creation.
 
 ## IQ Prep BAU automation
 
