@@ -216,4 +216,4 @@ Use text plus consistent `Project`, `Parent`, `Item`, `State`, `Actor`, `Policy`
 
 ### UX agent follow-up decision
 
-Pending post-deployment review. The responsive capability-loss blocker is resolved in the development prototype; remaining P0 work is installed-GUI overflow, URL/history-backed selection, workflow/board convergence, and resilient mutation/recovery states.
+**Accepted for this development slice after deployment of commit `4855a43`.** The agent's decision is recorded on `AIW-100` as comment `e5b29a1d-14de-42de-b819-f9d617822b4b`. The responsive capability-loss blocker is resolved in the development prototype. Next priorities are URL/history-backed selection and installed-GUI mobile overflow, followed by workflow/board convergence and resilient mutation/recovery states.
