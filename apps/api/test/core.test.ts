@@ -88,6 +88,16 @@ describe('AIWork core flows', () => {
     const actors=await app.inject('/v1/actors');
     expect(actors.statusCode).toBe(200);
     expect(actors.json()).toEqual(expect.arrayContaining([expect.objectContaining({id:'actor_planner',capabilities:expect.any(Array)})]));
+    expect(actors.json()).toEqual(expect.arrayContaining([expect.objectContaining({id:'actor_aiwork_ux',name:'aiwork.ux',role:'ux',capabilities:expect.arrayContaining(['playwright'])})]));
+  });
+
+  it('activates the AIWork UX agent only through its dedicated workflow', async () => {
+    const epic=await app.inject('/v1/work-items/epic_aiw_100');
+    expect(epic.statusCode).toBe(200);
+    expect(epic.json()).toMatchObject({key:'AIW-100',status:'ready',actor:'Product Owner',version:1});
+    const transition=await app.inject({method:'POST',url:'/v1/work-items/epic_aiw_100/transition',headers:{authorization:'Bearer dev-token'},payload:{toState:'in_progress',expectedVersion:1}});
+    expect(transition.statusCode).toBe(200);
+    expect(transition.json()).toMatchObject({state:'in_progress',activeActorId:'actor_aiwork_ux',version:2});
   });
 
   it('separates actor metadata from actor AI instructions', async () => {

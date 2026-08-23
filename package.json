@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@11.22.0",
   "scripts": {
-    "dev": "corepack pnpm --parallel --filter '@aiwork/*' dev",
+    "dev": "corepack pnpm --parallel --filter ./apps/* dev",
     "build": "corepack pnpm -r build",
     "check": "corepack pnpm -r check",
     "test": "corepack pnpm --filter @aiwork/api test"
