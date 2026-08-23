@@ -21,8 +21,11 @@ describe('AIWork core flows', () => {
     insert.run('story_1','DEMO-S','type_story','epic_1','proj_demo','wf_default','state_ready','Story',null,'Story rules','actor_planner',1,now,now);
     const moved=await app.inject({method:'POST',url:'/v1/work-items/story_1/transition',headers:{authorization:'Bearer dev-token'},payload:{toState:'in_progress',expectedVersion:1}}); expect(moved.statusCode).toBe(200);
     const response=await app.inject('/v1/work-items/story_1/ai?mode=full'); const body=response.json();
-    expect(body.context.provenance.map((x:{level:string})=>x.level)).toEqual(['project','initiative','epic','story','state','actor']);
+    expect(body.context.provenance.map((x:{level:string})=>x.level)).toEqual(['platform','project','initiative','epic','story','state','actor']);
     expect(body.effectiveInstructions).toContain('Implement with tests'); expect(body.workItem.status).toBe('in_progress');
+    expect(body.effectiveInstructions).toContain('This request was synchronized from AIWork');
+    expect(body.callbacks).toMatchObject({comments:'/v1/work-items/story_1/comments',transition:'/v1/work-items/story_1/transition'});
+    expect(body.context.provenance.find((x:{level:string})=>x.level==='epic').callbacks).toMatchObject({resource:'/v1/work-items/epic_1',comments:'/v1/work-items/epic_1/comments'});
   });
 
   it('rejects invalid transitions with actionable details', async () => {
@@ -161,6 +164,8 @@ describe('AIWork core flows', () => {
     expect(discovery.suggestedFlow).toContain('GET /v1/work-items/{id}/ai?mode=full');
     const context=(await app.inject('/v1/work-items/story_demo/ai?mode=full')).json();
     expect(context.apiSchema.tools.map((tool:{name:string})=>tool.name)).toContain('create_child');
+    expect(context.apiSchema.tools.map((tool:{name:string})=>tool.name)).toContain('add_comment');
+    expect(context.callbacks).toMatchObject({discovery:'/v1/ai',openApi:'/docs/json',aiContext:'/v1/work-items/story_demo/ai?mode=full'});
   });
 
   it('optimizes images and generates all responsive WebP/AVIF variants', async () => {

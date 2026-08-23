@@ -1,6 +1,7 @@
 import type { Sqlite } from '../db/index.js';
 
-type Provenance = { level: string; id: string; instructions: string; distance: number; role?: string };
+type CallbackLinks = { resource: string; aiContext: string; comments: string; gui: string };
+type Provenance = { level: string; id: string; instructions: string; distance: number; role?: string; key?: string; callbacks?: CallbackLinks };
 type ContextMode = 'compact' | 'full';
 
 export class AiContextService {
@@ -8,14 +9,14 @@ export class AiContextService {
 
   get(itemId: string, mode: ContextMode, maxTokens?: number) {
     const row = this.db.prepare(`
-      WITH RECURSIVE ancestors(id,parent_id,type_id,ai_instructions,distance) AS (
-        SELECT id,parent_id,type_id,ai_instructions,0 FROM work_items WHERE id=?
+      WITH RECURSIVE ancestors(id,parent_id,type_id,key,ai_instructions,distance) AS (
+        SELECT id,parent_id,type_id,key,ai_instructions,0 FROM work_items WHERE id=?
         UNION ALL
-        SELECT w.id,w.parent_id,w.type_id,w.ai_instructions,a.distance+1 FROM work_items w JOIN ancestors a ON w.id=a.parent_id
+        SELECT w.id,w.parent_id,w.type_id,w.key,w.ai_instructions,a.distance+1 FROM work_items w JOIN ancestors a ON w.id=a.parent_id
       )
       SELECT w.id,w.key,w.title,w.description,w.ai_instructions,w.version,t.key AS type,s.key AS status,s.instructions AS state_instructions,
              a.id AS actor_id,a.name AS actor_name,a.role,a.instructions AS actor_instructions,a.capabilities_json,
-             (SELECT json_group_array(json_object('id',x.id,'level',xt.key,'instructions',x.ai_instructions,'distance',x.distance))
+             (SELECT json_group_array(json_object('id',x.id,'key',x.key,'level',xt.key,'instructions',x.ai_instructions,'distance',x.distance))
                 FROM ancestors x JOIN work_item_types xt ON xt.id=x.type_id WHERE x.ai_instructions IS NOT NULL AND trim(x.ai_instructions)<>'') AS provenance_json,
              (SELECT json_group_array(json_object('id',c.id,'body',c.body,'authorId',c.author_id,'createdAt',c.created_at)) FROM comments c WHERE c.work_item_id=w.id) AS comments_json,
              (SELECT json_group_array(json_object('id',ch.id,'key',ch.key,'title',ch.title)) FROM work_items ch WHERE ch.parent_id=w.id) AS children_json,
@@ -28,7 +29,8 @@ export class AiContextService {
 
     const inherited = JSON.parse(String(row.provenance_json ?? '[]')) as Provenance[];
     inherited.sort((a, b) => b.distance - a.distance);
-    const provenance: Provenance[] = [...inherited];
+    const linked = inherited.map((entry) => ({ ...entry, callbacks: callbackLinks(entry.id) }));
+    const provenance: Provenance[] = [platformContext(), ...linked];
     if (row.state_instructions) provenance.push({ level: 'state', id: String(row.status), instructions: String(row.state_instructions), distance: -1 });
     if (row.actor_instructions) provenance.push({ level: 'actor', id: String(row.actor_id), role: String(row.role), instructions: String(row.actor_instructions), distance: -2 });
     const budgeted = this.applyBudget(provenance, maxTokens);
@@ -38,6 +40,12 @@ export class AiContextService {
       context: { provenance: budgeted },
       effectiveInstructions: budgeted.map((p) => `[${p.level}:${p.id}]\n${p.instructions}`).join('\n\n'),
       availableActions: actions,
+      callbacks: {
+        ...callbackLinks(String(row.id)),
+        discovery: '/v1/ai',
+        openApi: '/docs/json',
+        transition: `/v1/work-items/${row.id}/transition`,
+      },
       apiSchema: actionSchemas(String(row.id), Number(row.version)),
     };
     if (mode === 'full') {
@@ -51,7 +59,7 @@ export class AiContextService {
     let chars = Math.max(0, maxTokens * 4);
     // Keep state, actor, local, direct parent, then increasingly distant ancestors.
     const priority = [...blocks].sort((a, b) => {
-      const score = (x: Provenance) => x.level === 'state' ? 0 : x.level === 'actor' ? 1 : x.distance === 0 ? 2 : x.distance === 1 ? 3 : x.level === 'project' ? 4 : 5 + x.distance;
+      const score = (x: Provenance) => x.level === 'platform' ? 0 : x.level === 'state' ? 1 : x.level === 'actor' ? 2 : x.distance === 0 ? 3 : x.distance === 1 ? 4 : x.level === 'project' ? 5 : 6 + x.distance;
       return score(a) - score(b);
     });
     const kept = new Map<string, Provenance>();
@@ -63,6 +71,30 @@ export class AiContextService {
     }
     return blocks.filter((b) => kept.has(`${b.level}:${b.id}`)).map((b) => kept.get(`${b.level}:${b.id}`)!);
   }
+}
+
+function callbackLinks(itemId: string): CallbackLinks {
+  const id = encodeURIComponent(itemId);
+  return {
+    resource: `/v1/work-items/${id}`,
+    aiContext: `/v1/work-items/${id}/ai?mode=full`,
+    comments: `/v1/work-items/${id}/comments`,
+    gui: `/work-items/${id}`,
+  };
+}
+
+function platformContext(): Provenance {
+  return {
+    level: 'platform',
+    id: 'aiwork',
+    distance: Number.MAX_SAFE_INTEGER,
+    instructions: [
+      'AIWork is the source-of-truth work-management system for hierarchical projects, initiatives, epics, stories, and tasks.',
+      'This request was synchronized from AIWork. Before acting, GET the current item AI context; after meaningful progress, POST a concise comment back to the item and move it only through an available workflow transition.',
+      'Never change status through the generic work-item update route. Mutation requests require Authorization: Bearer <token>; transitions require the latest expectedVersion, so refresh and retry after a stale-version response.',
+      'Discover the REST API at GET /v1/ai and OpenAPI at GET /docs/json. Use the callbacks attached to each hierarchy context block to update the correct project, epic, story, or task.',
+    ].join(' '),
+  };
 }
 
 function actionSchemas(itemId: string, version: number) {
