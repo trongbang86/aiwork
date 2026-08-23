@@ -191,3 +191,29 @@ Use text plus consistent `Project`, `Parent`, `Item`, `State`, `Actor`, `Policy`
 ### Product Remediation Status
 
 **Open; product release readiness was not granted or requested by this audit.** P0 defects remain: prototype item inspection/actions disappear below 1100 px, installed mobile routes overflow, workflow representations diverge, and authorization/conflict/invalid-transition/offline handling is absent or not evidenced. These remain prioritized backlog items for implementation and subsequent responsive/keyboard regression review; they do not withhold acceptance of the audit deliverable.
+
+## Development iteration — responsive work-item detail
+
+### UX agent recommendation
+
+- [x] Re-ran the active `AIW-100` context as `aiwork.ux` and recorded its recommendation in the Epic comments.
+- [x] Selected the highest-priority contained remediation: restore every work-item capability below 1100 px before broader information-architecture work.
+
+### Implementation
+
+- [x] Replace the hidden sub-1100 px inspector with a 420 px tablet side sheet and dimmed dismissible backdrop.
+- [x] Use a full-viewport work-item detail surface below 700 px without horizontal overflow.
+- [x] Preserve transitions, attachments, comments, `/ai` copy, and AI-context provenance at every viewport.
+- [x] Add explicit tablet back/mobile close controls, Escape dismissal, initial detail focus, and focus restoration to the selected row/card.
+- [x] Keep the closed inspector visibility-hidden so its interactive subtree is absent from keyboard and accessibility navigation.
+
+### Live Playwright follow-up
+
+- [x] At 1099×900, selecting `DEMO-1` opens the 420 px side sheet with every operation present in the accessibility tree.
+- [x] At 390×844, the detail occupies exactly 390×844; document scroll width remains 390 px.
+- [x] Detail opening moves focus to the labelled work-item region; Escape closes it and restores focus to `DEMO-1`.
+- [x] At 1440×900, the persistent 360 px desktop inspector remains visible and document scroll width remains 1440 px.
+
+### UX agent follow-up decision
+
+Pending post-deployment review. The responsive capability-loss blocker is resolved in the development prototype; remaining P0 work is installed-GUI overflow, URL/history-backed selection, workflow/board convergence, and resilient mutation/recovery states.

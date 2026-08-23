@@ -1,30 +1,785 @@
-import { useEffect,useMemo,useState } from 'react';
-import { useMutation,useQuery,useQueryClient } from '@tanstack/react-query';
-import { Bot,ChevronRight,GitBranch,Kanban,Network,Plus,Search,Sparkles } from 'lucide-react';
-import { Background,Controls,ReactFlow,type Edge,type Node } from '@xyflow/react';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Bot,
+  ChevronLeft,
+  ChevronRight,
+  GitBranch,
+  Kanban,
+  Network,
+  Plus,
+  Search,
+  Sparkles,
+  X,
+} from "lucide-react";
+import {
+  Background,
+  Controls,
+  ReactFlow,
+  type Edge,
+  type Node,
+} from "@xyflow/react";
 
-type Item={id:string;key:string;parentId:string|null;projectId:string;title:string;type:string;status:string;actor:string;version:number};
-type Project={id:string;key:string;title:string;itemCount:number};
-type Comment={id:string;body:string;authorId:string;createdAt:string};
-type Attachment={id:string;filename:string;mimeType:string};
-type Context={workItem:Item;context:{provenance:Array<{level:string;id:string;instructions:string;role?:string}>};effectiveInstructions:string;availableActions:Array<{action:string;toState:string}>;details:{description:string|null;comments:Comment[];attachments:Attachment[]}};
-const json=async<T,>(url:string):Promise<T>=>{const r=await fetch(url);if(!r.ok)throw new Error(await r.text());return r.json() as Promise<T>};
-const mutate=async<T,>(url:string,body:unknown):Promise<T>=>{const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer dev-token'},body:JSON.stringify(body)});if(!r.ok)throw new Error((await r.json() as {error?:{message?:string}}).error?.message??'Request failed');return r.json() as Promise<T>};
-const upload=async<T,>(url:string,file:File):Promise<T>=>{const body=new FormData();body.append('file',file);const r=await fetch(url,{method:'POST',headers:{authorization:'Bearer dev-token'},body});if(!r.ok)throw new Error('Upload failed');return r.json() as Promise<T>};
+type Item = {
+  id: string;
+  key: string;
+  parentId: string | null;
+  projectId: string;
+  title: string;
+  type: string;
+  status: string;
+  actor: string;
+  version: number;
+};
+type Project = { id: string; key: string; title: string; itemCount: number };
+type Comment = {
+  id: string;
+  body: string;
+  authorId: string;
+  createdAt: string;
+};
+type Attachment = { id: string; filename: string; mimeType: string };
+type Context = {
+  workItem: Item;
+  context: {
+    provenance: Array<{
+      level: string;
+      id: string;
+      instructions: string;
+      role?: string;
+    }>;
+  };
+  effectiveInstructions: string;
+  availableActions: Array<{ action: string; toState: string }>;
+  details: {
+    description: string | null;
+    comments: Comment[];
+    attachments: Attachment[];
+  };
+};
+const json = async <T,>(url: string): Promise<T> => {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json() as Promise<T>;
+};
+const mutate = async <T,>(url: string, body: unknown): Promise<T> => {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: "Bearer dev-token",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok)
+    throw new Error(
+      ((await r.json()) as { error?: { message?: string } }).error?.message ??
+        "Request failed",
+    );
+  return r.json() as Promise<T>;
+};
+const upload = async <T,>(url: string, file: File): Promise<T> => {
+  const body = new FormData();
+  body.append("file", file);
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { authorization: "Bearer dev-token" },
+    body,
+  });
+  if (!r.ok) throw new Error("Upload failed");
+  return r.json() as Promise<T>;
+};
 
-export function App(){
- const [view,setView]=useState<'hierarchy'|'board'|'workflow'>('hierarchy');const [projectId,setProjectId]=useState('proj_demo');const [selected,setSelected]=useState('story_demo');const [palette,setPalette]=useState(false);const [creating,setCreating]=useState(false);const [creatingProject,setCreatingProject]=useState(false);
- const projects=useQuery({queryKey:['projects'],queryFn:()=>json<Project[]>('/v1/projects')});const items=useQuery({queryKey:['items',projectId],queryFn:()=>json<Item[]>(`/v1/work-items?projectId=${projectId}`)});const project=projects.data?.find(p=>p.id===projectId);const selectedItem=items.data?.find(i=>i.id===selected);
- useEffect(()=>{const key=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();setPalette(x=>!x)}else if(e.key==='Escape'){setPalette(false);setCreating(false);setCreatingProject(false)}};addEventListener('keydown',key);return()=>removeEventListener('keydown',key)},[]);
- return <div className="app"><aside><div className="brand"><Sparkles size={18}/> AIWork</div><button className="search" onClick={()=>setPalette(true)}><Search size={15}/>Search <kbd>Ctrl K</kbd></button><nav><Nav icon={<Network/>} label="Hierarchy" active={view==='hierarchy'} onClick={()=>setView('hierarchy')}/><Nav icon={<Kanban/>} label="Board" active={view==='board'} onClick={()=>setView('board')}/><Nav icon={<GitBranch/>} label="Workflow" active={view==='workflow'} onClick={()=>setView('workflow')}/></nav><div className="project-picker"><label htmlFor="project-picker">Project</label><select id="project-picker" value={projectId} onChange={e=>{setProjectId(e.target.value);setSelected(e.target.value)}}>{projects.data?.map(p=><option key={p.id} value={p.id}>{p.key} — {p.title}</option>)}</select><button onClick={()=>setCreatingProject(true)}><Plus size={13}/> New project</button></div></aside>
- <main><header><div><small>AIWORK / {project?.key??'PROJECT'}</small><h1>{view[0]!.toUpperCase()+view.slice(1)}</h1></div><div className="header-actions"><button className="primary" disabled={!selectedItem||selectedItem.type==='task'} onClick={()=>setCreating(true)}><Plus size={15}/> Add child</button><span className="online">● API connected</span></div></header>{items.isLoading?<p>Loading…</p>:items.error?<p className="error">API unavailable. Start the backend on port 4300.</p>:view==='hierarchy'?<Hierarchy items={items.data??[]} selected={selected} select={setSelected}/>:view==='board'?<Board items={items.data??[]} select={setSelected}/>:<Workflow/>}</main>
- <Inspector id={selected}/>{palette&&<Palette items={items.data??[]} close={()=>setPalette(false)} select={item=>{setProjectId(item.projectId);setSelected(item.id);setPalette(false)}}/>}{creating&&selectedItem&&<CreateWork parent={selectedItem} projectId={projectId} close={()=>setCreating(false)} created={id=>{setSelected(id);setCreating(false)}}/>}{creatingProject&&<CreateProject close={()=>setCreatingProject(false)} created={id=>{setProjectId(id);setSelected(id);setCreatingProject(false)}}/>}</div>
+export function App() {
+  const [view, setView] = useState<"hierarchy" | "board" | "workflow">(
+    "hierarchy",
+  );
+  const [projectId, setProjectId] = useState("proj_demo");
+  const [selected, setSelected] = useState("story_demo");
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [palette, setPalette] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const selectionTrigger = useRef<HTMLElement | null>(null);
+  const projects = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => json<Project[]>("/v1/projects"),
+  });
+  const items = useQuery({
+    queryKey: ["items", projectId],
+    queryFn: () => json<Item[]>(`/v1/work-items?projectId=${projectId}`),
+  });
+  const project = projects.data?.find((p) => p.id === projectId);
+  const selectedItem = items.data?.find((i) => i.id === selected);
+  const selectItem = (id: string) => {
+    selectionTrigger.current = document.activeElement as HTMLElement;
+    setSelected(id);
+    setDetailOpen(true);
+  };
+  const closeDetail = () => {
+    setDetailOpen(false);
+    requestAnimationFrame(() => selectionTrigger.current?.focus());
+  };
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPalette((x) => !x);
+      } else if (e.key === "Escape") {
+        setPalette(false);
+        setCreating(false);
+        setCreatingProject(false);
+      }
+    };
+    addEventListener("keydown", key);
+    return () => removeEventListener("keydown", key);
+  }, []);
+  return (
+    <div className="app">
+      <aside>
+        <div className="brand">
+          <Sparkles size={18} /> AIWork
+        </div>
+        <button className="search" onClick={() => setPalette(true)}>
+          <Search size={15} />
+          Search <kbd>Ctrl K</kbd>
+        </button>
+        <nav>
+          <Nav
+            icon={<Network />}
+            label="Hierarchy"
+            active={view === "hierarchy"}
+            onClick={() => setView("hierarchy")}
+          />
+          <Nav
+            icon={<Kanban />}
+            label="Board"
+            active={view === "board"}
+            onClick={() => setView("board")}
+          />
+          <Nav
+            icon={<GitBranch />}
+            label="Workflow"
+            active={view === "workflow"}
+            onClick={() => setView("workflow")}
+          />
+        </nav>
+        <div className="project-picker">
+          <label htmlFor="project-picker">Project</label>
+          <select
+            id="project-picker"
+            value={projectId}
+            onChange={(e) => {
+              setProjectId(e.target.value);
+              setSelected(e.target.value);
+              setDetailOpen(false);
+            }}
+          >
+            {projects.data?.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.key} — {p.title}
+              </option>
+            ))}
+          </select>
+          <button onClick={() => setCreatingProject(true)}>
+            <Plus size={13} /> New project
+          </button>
+        </div>
+      </aside>
+      <main>
+        <header>
+          <div>
+            <small>AIWORK / {project?.key ?? "PROJECT"}</small>
+            <h1>{view[0]!.toUpperCase() + view.slice(1)}</h1>
+          </div>
+          <div className="header-actions">
+            <button
+              className="primary"
+              disabled={!selectedItem || selectedItem.type === "task"}
+              onClick={() => setCreating(true)}
+            >
+              <Plus size={15} /> Add child
+            </button>
+            <span className="online">● API connected</span>
+          </div>
+        </header>
+        {items.isLoading ? (
+          <p>Loading…</p>
+        ) : items.error ? (
+          <p className="error">
+            API unavailable. Start the backend on port 4300.
+          </p>
+        ) : view === "hierarchy" ? (
+          <Hierarchy
+            items={items.data ?? []}
+            selected={selected}
+            select={selectItem}
+          />
+        ) : view === "board" ? (
+          <Board items={items.data ?? []} select={selectItem} />
+        ) : (
+          <Workflow />
+        )}
+      </main>
+      <button
+        className={`inspector-backdrop ${detailOpen ? "open" : ""}`}
+        aria-label="Close work item"
+        onClick={closeDetail}
+      />
+      <Inspector id={selected} open={detailOpen} close={closeDetail} />
+      {palette && (
+        <Palette
+          items={items.data ?? []}
+          close={() => setPalette(false)}
+          select={(item) => {
+            setProjectId(item.projectId);
+            selectItem(item.id);
+            setPalette(false);
+          }}
+        />
+      )}
+      {creating && selectedItem && (
+        <CreateWork
+          parent={selectedItem}
+          projectId={projectId}
+          close={() => setCreating(false)}
+          created={(id) => {
+            selectItem(id);
+            setCreating(false);
+          }}
+        />
+      )}
+      {creatingProject && (
+        <CreateProject
+          close={() => setCreatingProject(false)}
+          created={(id) => {
+            setProjectId(id);
+            setSelected(id);
+            setCreatingProject(false);
+          }}
+        />
+      )}
+    </div>
+  );
 }
-function Nav(p:{icon:React.ReactNode;label:string;active:boolean;onClick:()=>void}){return <button className={p.active?'active':''} onClick={p.onClick}>{p.icon}{p.label}</button>}
-function Hierarchy({items,selected,select}:{items:Item[];selected:string;select:(id:string)=>void}){const children=(parent:string|null,depth=0):React.ReactNode=>items.filter(i=>i.parentId===parent).map(i=><div key={i.id}><button className={`tree-row ${selected===i.id?'selected':''}`} style={{paddingLeft:12+depth*22}} onClick={()=>select(i.id)}><ChevronRight size={14}/><span className="type">{i.type}</span><b>{i.key}</b><span>{i.title}</span><i className={`state ${i.status}`}>{i.status.replace('_',' ')}</i>{i.actor&&<em><Bot size={12}/>{i.actor}</em>}</button>{children(i.id,depth+1)}</div>);return <section className="panel"><div className="panel-title">Work hierarchy <span>{items.length} items</span></div>{children(null)}</section>}
-function Board({items,select}:{items:Item[];select:(id:string)=>void}){return <div className="board">{['ready','in_progress','test','production'].map(s=><section key={s}><h3>{s.replace('_',' ')} <span>{items.filter(i=>i.status===s).length}</span></h3>{items.filter(i=>i.status===s).map(i=><button className="card" key={i.id} onClick={()=>select(i.id)}><small>{i.key} · {i.type}</small><b>{i.title}</b>{i.actor&&<em><Bot size={12}/>{i.actor}</em>}</button>)}</section>)}</div>}
-function Inspector({id}:{id:string}){const client=useQueryClient();const [body,setBody]=useState('');const [file,setFile]=useState<File|null>(null);const context=useQuery({queryKey:['context',id],queryFn:()=>json<Context>(`/v1/work-items/${id}/ai?mode=full&max_tokens=2000`)});const refresh=async()=>{await Promise.all([client.invalidateQueries({queryKey:['context',id]}),client.invalidateQueries({queryKey:['items']})])};const add=useMutation({mutationFn:()=>mutate(`/v1/work-items/${id}/comments`,{body}),onSuccess:async()=>{setBody('');await refresh()}});const transition=useMutation({mutationFn:(toState:string)=>mutate(`/v1/work-items/${id}/transition`,{toState,expectedVersion:context.data!.workItem.version}),onSuccess:refresh});const attach=useMutation({mutationFn:()=>upload(`/v1/work-items/${id}/attachments`,file!),onSuccess:async()=>{setFile(null);await refresh()}});return <aside className="inspector"><div className="panel-title"><span><Bot size={16}/> Work item</span><button disabled={!context.data} onClick={()=>navigator.clipboard.writeText(`${location.origin}/v1/work-items/${id}/ai?mode=full`)}>Copy /ai URL</button></div>{context.isLoading&&<p className="inspector-status">Loading work item…</p>}{context.error&&<p className="inspector-status error">Could not load this work item.</p>}{context.data&&<><h2>{context.data.workItem.title}</h2><p className="muted">{context.data.details.description||'No description'}</p><section className="item-actions"><h3>Status: {context.data.workItem.status.replace('_',' ')}</h3>{context.data.availableActions.map(a=><button key={a.toState} disabled={transition.isPending} onClick={()=>transition.mutate(a.toState)}>Move to {a.toState.replace('_',' ')}</button>)}{transition.error&&<small className="error">{transition.error.message}</small>}</section><section className="attachments"><h3>Attachments</h3>{context.data.details.attachments.length===0&&<p className="muted">No attachments yet.</p>}{context.data.details.attachments.map(a=><a key={a.id} href={`/v1/attachments/${a.id}/content`} target="_blank">{a.mimeType.startsWith('image/')&&<img src={`/v1/attachments/${a.id}/content`} alt=""/>}<span>{a.filename}</span></a>)}<form onSubmit={e=>{e.preventDefault();if(file)attach.mutate()}}><input aria-label="Choose attachment" type="file" accept="image/*" onChange={e=>setFile(e.target.files?.[0]??null)}/><button disabled={!file||attach.isPending}>Upload image</button>{attach.error&&<small className="error">{attach.error.message}</small>}</form></section><section className="comments"><h3>Comments</h3>{context.data.details.comments.length===0&&<p className="muted">No comments yet.</p>}{context.data.details.comments.map(c=><article key={c.id}><b>{c.authorId}</b><p>{c.body}</p></article>)}<form onSubmit={e=>{e.preventDefault();if(body.trim())add.mutate()}}><textarea aria-label="Comment" placeholder="Add a comment…" value={body} onChange={e=>setBody(e.target.value)}/><button className="primary" disabled={add.isPending||!body.trim()}>Comment</button>{add.error&&<small className="error">{add.error.message}</small>}</form></section><details><summary>AI context and provenance</summary><div className="provenance">{context.data.context.provenance.map((p,n)=><article key={`${p.level}-${p.id}`}><small>{n+1} · {p.level}{p.role&&` · ${p.role}`}</small><p>{p.instructions}</p></article>)}</div><pre>{context.data.effectiveInstructions}</pre></details></>}</aside>}
-function CreateWork({parent,projectId,close,created}:{parent:Item;projectId:string;close:()=>void;created:(id:string)=>void}){const client=useQueryClient();const hierarchy=['project','initiative','epic','story','task'];const next=hierarchy[hierarchy.indexOf(parent.type)+1];const [title,setTitle]=useState('');const create=useMutation({mutationFn:()=>mutate<{id:string}>('/v1/work-items',{parentId:parent.id,type:next,title}),onSuccess:async result=>{await client.invalidateQueries({queryKey:['items',projectId]});created(result.id)}});return <div className="overlay" onMouseDown={close}><form className="dialog" onMouseDown={e=>e.stopPropagation()} onSubmit={e=>{e.preventDefault();if(next)create.mutate()}}><h2>Create {next} under {parent.key}</h2><p className="muted">{parent.title}</p><label>Type<input value={next??'No child type'} readOnly/></label><label>Title<input autoFocus required value={title} onChange={e=>setTitle(e.target.value)}/></label><small>The hierarchy is Project → Initiative → Epic → Story → Task. Keys are assigned automatically.</small>{create.error&&<p className="error">{create.error.message}</p>}<div className="dialog-actions"><button type="button" onClick={close}>Cancel</button><button className="primary" disabled={!next||create.isPending||!title.trim()}>Create {next}</button></div></form></div>}
-function CreateProject({close,created}:{close:()=>void;created:(id:string)=>void}){const client=useQueryClient();const [key,setKey]=useState('');const [title,setTitle]=useState('');const create=useMutation({mutationFn:()=>mutate<{id:string}>('/v1/projects',{key:key.trim().toUpperCase(),title}),onSuccess:async result=>{await client.invalidateQueries({queryKey:['projects']});created(result.id)}});return <div className="overlay" onMouseDown={close}><form className="dialog" onMouseDown={e=>e.stopPropagation()} onSubmit={e=>{e.preventDefault();create.mutate()}}><h2>Create project</h2><label>Key<input autoFocus required maxLength={12} placeholder="e.g. WEB" value={key} onChange={e=>setKey(e.target.value)}/></label><label>Title<input required placeholder="Project name" value={title} onChange={e=>setTitle(e.target.value)}/></label>{create.error&&<p className="error">{create.error.message}</p>}<div className="dialog-actions"><button type="button" onClick={close}>Cancel</button><button className="primary" disabled={create.isPending||!key.trim()||!title.trim()}>Create project</button></div></form></div>}
-function Workflow(){const nodes:Node[]=[['state_ready','Ready',0],['state_progress','In Progress',1],['state_test','Test',2],['state_production','Production',3]].map(([id,label,n])=>({id:String(id),position:{x:Number(n)*190,y:130},data:{label},className:'flow-node'}));const edges:Edge[]=[['ready-progress','state_ready','state_progress'],['progress-test','state_progress','state_test'],['test-progress','state_test','state_progress'],['test-prod','state_test','state_production']].map(([id,source,target])=>({id,source,target,animated:true}));return <section className="flow"><ReactFlow nodes={nodes} edges={edges} fitView><Background/><Controls/></ReactFlow></section>}
-function Palette({items,close,select}:{items:Item[];close:()=>void;select:(item:Item)=>void}){const [q,setQ]=useState('');const local=useMemo(()=>items.filter(i=>`${i.key} ${i.title}`.toLowerCase().includes(q.toLowerCase())),[items,q]);const search=useQuery({queryKey:['search',q],queryFn:()=>json<Item[]>(`/v1/work-items?q=${encodeURIComponent(q.trim())}`),enabled:q.trim().length>0});const found=q.trim()?(search.data??[]):local;return <div className="overlay" onMouseDown={close}><div className="palette" onMouseDown={e=>e.stopPropagation()}><input aria-label="Search all projects" autoFocus placeholder="Search all projects by key or title…" value={q} onChange={e=>setQ(e.target.value)}/><small className="search-scope">{q.trim()?'Searching every project':'Showing the current project'}</small>{search.isFetching&&<p className="muted">Searching…</p>}{!search.isFetching&&found.length===0&&<p className="muted">No matching work items.</p>}{found.map(i=><button key={i.id} onClick={()=>select(i)}><b>{i.key}</b>{i.title}<small>{i.type} · {i.status}</small></button>)}</div></div>}
+function Nav(p: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button className={p.active ? "active" : ""} onClick={p.onClick}>
+      {p.icon}
+      {p.label}
+    </button>
+  );
+}
+function Hierarchy({
+  items,
+  selected,
+  select,
+}: {
+  items: Item[];
+  selected: string;
+  select: (id: string) => void;
+}) {
+  const children = (parent: string | null, depth = 0): React.ReactNode =>
+    items
+      .filter((i) => i.parentId === parent)
+      .map((i) => (
+        <div key={i.id}>
+          <button
+            className={`tree-row ${selected === i.id ? "selected" : ""}`}
+            style={{ paddingLeft: 12 + depth * 22 }}
+            onClick={() => select(i.id)}
+          >
+            <ChevronRight size={14} />
+            <span className="type">{i.type}</span>
+            <b>{i.key}</b>
+            <span>{i.title}</span>
+            <i className={`state ${i.status}`}>{i.status.replace("_", " ")}</i>
+            {i.actor && (
+              <em>
+                <Bot size={12} />
+                {i.actor}
+              </em>
+            )}
+          </button>
+          {children(i.id, depth + 1)}
+        </div>
+      ));
+  return (
+    <section className="panel">
+      <div className="panel-title">
+        Work hierarchy <span>{items.length} items</span>
+      </div>
+      {children(null)}
+    </section>
+  );
+}
+function Board({
+  items,
+  select,
+}: {
+  items: Item[];
+  select: (id: string) => void;
+}) {
+  return (
+    <div className="board">
+      {["ready", "in_progress", "test", "production"].map((s) => (
+        <section key={s}>
+          <h3>
+            {s.replace("_", " ")}{" "}
+            <span>{items.filter((i) => i.status === s).length}</span>
+          </h3>
+          {items
+            .filter((i) => i.status === s)
+            .map((i) => (
+              <button className="card" key={i.id} onClick={() => select(i.id)}>
+                <small>
+                  {i.key} · {i.type}
+                </small>
+                <b>{i.title}</b>
+                {i.actor && (
+                  <em>
+                    <Bot size={12} />
+                    {i.actor}
+                  </em>
+                )}
+              </button>
+            ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+function Inspector({
+  id,
+  open,
+  close,
+}: {
+  id: string;
+  open: boolean;
+  close: () => void;
+}) {
+  const client = useQueryClient();
+  const panel = useRef<HTMLElement>(null);
+  const [body, setBody] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const context = useQuery({
+    queryKey: ["context", id],
+    queryFn: () =>
+      json<Context>(`/v1/work-items/${id}/ai?mode=full&max_tokens=2000`),
+  });
+  useEffect(() => {
+    if (open) setTimeout(() => panel.current?.focus(), 0);
+  }, [open, id]);
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (open && event.key === "Escape") {
+        event.stopPropagation();
+        close();
+      }
+    };
+    addEventListener("keydown", key);
+    return () => removeEventListener("keydown", key);
+  }, [open, close]);
+  const refresh = async () => {
+    await Promise.all([
+      client.invalidateQueries({ queryKey: ["context", id] }),
+      client.invalidateQueries({ queryKey: ["items"] }),
+    ]);
+  };
+  const add = useMutation({
+    mutationFn: () => mutate(`/v1/work-items/${id}/comments`, { body }),
+    onSuccess: async () => {
+      setBody("");
+      await refresh();
+    },
+  });
+  const transition = useMutation({
+    mutationFn: (toState: string) =>
+      mutate(`/v1/work-items/${id}/transition`, {
+        toState,
+        expectedVersion: context.data!.workItem.version,
+      }),
+    onSuccess: refresh,
+  });
+  const attach = useMutation({
+    mutationFn: () => upload(`/v1/work-items/${id}/attachments`, file!),
+    onSuccess: async () => {
+      setFile(null);
+      await refresh();
+    },
+  });
+  return (
+    <aside
+      ref={panel}
+      tabIndex={-1}
+      aria-label="Work item details"
+      className={`inspector ${open ? "open" : ""}`}
+      onTransitionEnd={() => open && panel.current?.focus()}
+    >
+      <div className="panel-title">
+        <button
+          className="inspector-close"
+          aria-label="Close work item"
+          onClick={close}
+        >
+          <ChevronLeft className="tablet-back" />
+          <X className="mobile-close" />
+        </button>
+        <span>
+          <Bot size={16} /> Work item
+        </span>
+        <button
+          disabled={!context.data}
+          onClick={() =>
+            navigator.clipboard.writeText(
+              `${location.origin}/v1/work-items/${id}/ai?mode=full`,
+            )
+          }
+        >
+          Copy /ai URL
+        </button>
+      </div>
+      {context.isLoading && (
+        <p className="inspector-status">Loading work item…</p>
+      )}
+      {context.error && (
+        <p className="inspector-status error">Could not load this work item.</p>
+      )}
+      {context.data && (
+        <>
+          <h2>{context.data.workItem.title}</h2>
+          <p className="muted">
+            {context.data.details.description || "No description"}
+          </p>
+          <section className="item-actions">
+            <h3>Status: {context.data.workItem.status.replace("_", " ")}</h3>
+            {context.data.availableActions.map((a) => (
+              <button
+                key={a.toState}
+                disabled={transition.isPending}
+                onClick={() => transition.mutate(a.toState)}
+              >
+                Move to {a.toState.replace("_", " ")}
+              </button>
+            ))}
+            {transition.error && (
+              <small className="error">{transition.error.message}</small>
+            )}
+          </section>
+          <section className="attachments">
+            <h3>Attachments</h3>
+            {context.data.details.attachments.length === 0 && (
+              <p className="muted">No attachments yet.</p>
+            )}
+            {context.data.details.attachments.map((a) => (
+              <a
+                key={a.id}
+                href={`/v1/attachments/${a.id}/content`}
+                target="_blank"
+              >
+                {a.mimeType.startsWith("image/") && (
+                  <img src={`/v1/attachments/${a.id}/content`} alt="" />
+                )}
+                <span>{a.filename}</span>
+              </a>
+            ))}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (file) attach.mutate();
+              }}
+            >
+              <input
+                aria-label="Choose attachment"
+                type="file"
+                accept="image/*"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+              <button disabled={!file || attach.isPending}>Upload image</button>
+              {attach.error && (
+                <small className="error">{attach.error.message}</small>
+              )}
+            </form>
+          </section>
+          <section className="comments">
+            <h3>Comments</h3>
+            {context.data.details.comments.length === 0 && (
+              <p className="muted">No comments yet.</p>
+            )}
+            {context.data.details.comments.map((c) => (
+              <article key={c.id}>
+                <b>{c.authorId}</b>
+                <p>{c.body}</p>
+              </article>
+            ))}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (body.trim()) add.mutate();
+              }}
+            >
+              <textarea
+                aria-label="Comment"
+                placeholder="Add a comment…"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+              />
+              <button
+                className="primary"
+                disabled={add.isPending || !body.trim()}
+              >
+                Comment
+              </button>
+              {add.error && (
+                <small className="error">{add.error.message}</small>
+              )}
+            </form>
+          </section>
+          <details>
+            <summary>AI context and provenance</summary>
+            <div className="provenance">
+              {context.data.context.provenance.map((p, n) => (
+                <article key={`${p.level}-${p.id}`}>
+                  <small>
+                    {n + 1} · {p.level}
+                    {p.role && ` · ${p.role}`}
+                  </small>
+                  <p>{p.instructions}</p>
+                </article>
+              ))}
+            </div>
+            <pre>{context.data.effectiveInstructions}</pre>
+          </details>
+        </>
+      )}
+    </aside>
+  );
+}
+function CreateWork({
+  parent,
+  projectId,
+  close,
+  created,
+}: {
+  parent: Item;
+  projectId: string;
+  close: () => void;
+  created: (id: string) => void;
+}) {
+  const client = useQueryClient();
+  const hierarchy = ["project", "initiative", "epic", "story", "task"];
+  const next = hierarchy[hierarchy.indexOf(parent.type) + 1];
+  const [title, setTitle] = useState("");
+  const create = useMutation({
+    mutationFn: () =>
+      mutate<{ id: string }>("/v1/work-items", {
+        parentId: parent.id,
+        type: next,
+        title,
+      }),
+    onSuccess: async (result) => {
+      await client.invalidateQueries({ queryKey: ["items", projectId] });
+      created(result.id);
+    },
+  });
+  return (
+    <div className="overlay" onMouseDown={close}>
+      <form
+        className="dialog"
+        onMouseDown={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (next) create.mutate();
+        }}
+      >
+        <h2>
+          Create {next} under {parent.key}
+        </h2>
+        <p className="muted">{parent.title}</p>
+        <label>
+          Type
+          <input value={next ?? "No child type"} readOnly />
+        </label>
+        <label>
+          Title
+          <input
+            autoFocus
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </label>
+        <small>
+          The hierarchy is Project → Initiative → Epic → Story → Task. Keys are
+          assigned automatically.
+        </small>
+        {create.error && <p className="error">{create.error.message}</p>}
+        <div className="dialog-actions">
+          <button type="button" onClick={close}>
+            Cancel
+          </button>
+          <button
+            className="primary"
+            disabled={!next || create.isPending || !title.trim()}
+          >
+            Create {next}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+function CreateProject({
+  close,
+  created,
+}: {
+  close: () => void;
+  created: (id: string) => void;
+}) {
+  const client = useQueryClient();
+  const [key, setKey] = useState("");
+  const [title, setTitle] = useState("");
+  const create = useMutation({
+    mutationFn: () =>
+      mutate<{ id: string }>("/v1/projects", {
+        key: key.trim().toUpperCase(),
+        title,
+      }),
+    onSuccess: async (result) => {
+      await client.invalidateQueries({ queryKey: ["projects"] });
+      created(result.id);
+    },
+  });
+  return (
+    <div className="overlay" onMouseDown={close}>
+      <form
+        className="dialog"
+        onMouseDown={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          create.mutate();
+        }}
+      >
+        <h2>Create project</h2>
+        <label>
+          Key
+          <input
+            autoFocus
+            required
+            maxLength={12}
+            placeholder="e.g. WEB"
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+          />
+        </label>
+        <label>
+          Title
+          <input
+            required
+            placeholder="Project name"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </label>
+        {create.error && <p className="error">{create.error.message}</p>}
+        <div className="dialog-actions">
+          <button type="button" onClick={close}>
+            Cancel
+          </button>
+          <button
+            className="primary"
+            disabled={create.isPending || !key.trim() || !title.trim()}
+          >
+            Create project
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+function Workflow() {
+  const nodes: Node[] = [
+    ["state_ready", "Ready", 0],
+    ["state_progress", "In Progress", 1],
+    ["state_test", "Test", 2],
+    ["state_production", "Production", 3],
+  ].map(([id, label, n]) => ({
+    id: String(id),
+    position: { x: Number(n) * 190, y: 130 },
+    data: { label },
+    className: "flow-node",
+  }));
+  const edges: Edge[] = [
+    ["ready-progress", "state_ready", "state_progress"],
+    ["progress-test", "state_progress", "state_test"],
+    ["test-progress", "state_test", "state_progress"],
+    ["test-prod", "state_test", "state_production"],
+  ].map(([id, source, target]) => ({ id, source, target, animated: true }));
+  return (
+    <section className="flow">
+      <ReactFlow nodes={nodes} edges={edges} fitView>
+        <Background />
+        <Controls />
+      </ReactFlow>
+    </section>
+  );
+}
+function Palette({
+  items,
+  close,
+  select,
+}: {
+  items: Item[];
+  close: () => void;
+  select: (item: Item) => void;
+}) {
+  const [q, setQ] = useState("");
+  const local = useMemo(
+    () =>
+      items.filter((i) =>
+        `${i.key} ${i.title}`.toLowerCase().includes(q.toLowerCase()),
+      ),
+    [items, q],
+  );
+  const search = useQuery({
+    queryKey: ["search", q],
+    queryFn: () =>
+      json<Item[]>(`/v1/work-items?q=${encodeURIComponent(q.trim())}`),
+    enabled: q.trim().length > 0,
+  });
+  const found = q.trim() ? (search.data ?? []) : local;
+  return (
+    <div className="overlay" onMouseDown={close}>
+      <div className="palette" onMouseDown={(e) => e.stopPropagation()}>
+        <input
+          aria-label="Search all projects"
+          autoFocus
+          placeholder="Search all projects by key or title…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <small className="search-scope">
+          {q.trim() ? "Searching every project" : "Showing the current project"}
+        </small>
+        {search.isFetching && <p className="muted">Searching…</p>}
+        {!search.isFetching && found.length === 0 && (
+          <p className="muted">No matching work items.</p>
+        )}
+        {found.map((i) => (
+          <button key={i.id} onClick={() => select(i)}>
+            <b>{i.key}</b>
+            {i.title}
+            <small>
+              {i.type} · {i.status}
+            </small>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
