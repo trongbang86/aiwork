@@ -32,6 +32,7 @@ type Item = {
   version: number;
 };
 type Project = { id: string; key: string; title: string; itemCount: number };
+type Template = { id:string; itemType:string; descriptionTemplate:string; versions:Array<{id:string;version:number;name:string;instructions:string;comment:string;isActive:number}> };
 type Comment = {
   id: string;
   body: string;
@@ -78,6 +79,7 @@ const mutate = async <T,>(url: string, body: unknown): Promise<T> => {
     );
   return r.json() as Promise<T>;
 };
+const patch = async <T,>(url:string,body:unknown):Promise<T> => {const r=await fetch(url,{method:"PATCH",headers:{"content-type":"application/json",authorization:"Bearer dev-token"},body:JSON.stringify(body)});if(!r.ok)throw new Error(((await r.json()) as {error?:{message?:string}}).error?.message??"Request failed");return r.json() as Promise<T>;};
 const upload = async <T,>(url: string, file: File): Promise<T> => {
   const body = new FormData();
   body.append("file", file);
@@ -575,12 +577,28 @@ function CreateWork({
   const hierarchy = ["project", "initiative", "epic", "story", "task"];
   const next = hierarchy[hierarchy.indexOf(parent.type) + 1];
   const [title, setTitle] = useState("");
+  const [description,setDescription]=useState("");
+  const [versionId,setVersionId]=useState("");
+  const [versionName,setVersionName]=useState("");
+  const [instructions,setInstructions]=useState("");
+  const [versionComment,setVersionComment]=useState("");
+  const [selectedComment,setSelectedComment]=useState("");
+  const templates=useQuery({queryKey:["templates",projectId],queryFn:()=>json<Template[]>(`/v1/projects/${projectId}/templates`)});
+  const template=templates.data?.find(x=>x.itemType===next);
+  const selectedVersion=template?.versions.find(x=>x.id===(versionId||template.versions.find(v=>v.isActive)?.id));
+  useEffect(()=>{if(template){setDescription(template.descriptionTemplate);setVersionId(template.versions.find(v=>v.isActive)?.id??"");}},[template]);
+  useEffect(()=>setSelectedComment(selectedVersion?.comment??""),[selectedVersion]);
+  const addVersion=useMutation({mutationFn:()=>mutate(`/v1/projects/${projectId}/templates/${next}/versions`,{name:versionName,instructions,comment:versionComment,activate:true}),onSuccess:async()=>{setVersionName("");setInstructions("");setVersionComment("");await templates.refetch();}});
+  const activate=useMutation({mutationFn:()=>patch(`/v1/projects/${projectId}/templates/${next}/versions/${versionId}`,{active:true}),onSuccess:()=>templates.refetch()});
+  const saveComment=useMutation({mutationFn:()=>patch(`/v1/projects/${projectId}/templates/${next}/versions/${versionId}`,{comment:selectedComment}),onSuccess:()=>templates.refetch()});
   const create = useMutation({
     mutationFn: () =>
       mutate<{ id: string }>("/v1/work-items", {
         parentId: parent.id,
         type: next,
         title,
+        description,
+        instructionVersionId:versionId||undefined,
       }),
     onSuccess: async (result) => {
       await client.invalidateQueries({ queryKey: ["items", projectId] });
@@ -614,6 +632,11 @@ function CreateWork({
             onChange={(e) => setTitle(e.target.value)}
           />
         </label>
+        <label>Description template<textarea value={description} onChange={(e)=>setDescription(e.target.value)} /></label>
+        <label>AI instruction version<select aria-label="AI instruction version" value={versionId} onChange={(e)=>setVersionId(e.target.value)}>{template?.versions.map(v=><option key={v.id} value={v.id}>v{v.version} · {v.name}{v.isActive?" (active)":""}</option>)}</select></label>
+        {selectedVersion&&<label>Version comment<textarea value={selectedComment} onChange={e=>setSelectedComment(e.target.value)} placeholder="What was good or bad about this version?" /><button type="button" onClick={()=>saveComment.mutate()}>Save comment</button></label>}
+        {selectedVersion&&!selectedVersion.isActive&&<button type="button" onClick={()=>activate.mutate()}>Make selected version active</button>}
+        <details><summary>Configure a new project instruction version</summary><label>Version name<input value={versionName} onChange={e=>setVersionName(e.target.value)} /></label><label>Instructions<textarea value={instructions} onChange={e=>setInstructions(e.target.value)} /></label><label>Comment<textarea value={versionComment} onChange={e=>setVersionComment(e.target.value)} placeholder="What was good or bad about this version?" /></label><button type="button" disabled={!versionName.trim()||!instructions.trim()||addVersion.isPending} onClick={()=>addVersion.mutate()}>Add and activate version</button>{addVersion.error&&<p className="error">{addVersion.error.message}</p>}</details>
         <small>
           The hierarchy is Project → Initiative → Epic → Story → Task. Keys are
           assigned automatically.

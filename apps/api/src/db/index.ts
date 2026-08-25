@@ -26,6 +26,9 @@ function migrate(db: Sqlite) {
     CREATE TABLE IF NOT EXISTS work_items (id TEXT PRIMARY KEY, key TEXT NOT NULL UNIQUE, type_id TEXT NOT NULL, parent_id TEXT, project_id TEXT NOT NULL, workflow_id TEXT NOT NULL, state_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT, ai_instructions TEXT, active_actor_id TEXT, version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS work_items_parent_idx ON work_items(parent_id);
     CREATE INDEX IF NOT EXISTS work_items_project_idx ON work_items(project_id);
+    CREATE TABLE IF NOT EXISTS project_templates (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, item_type TEXT NOT NULL, description_template TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(project_id,item_type));
+    CREATE TABLE IF NOT EXISTS ai_instruction_versions (id TEXT PRIMARY KEY, template_id TEXT NOT NULL, version INTEGER NOT NULL, name TEXT NOT NULL, instructions TEXT NOT NULL, comment TEXT NOT NULL DEFAULT '', is_active INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(template_id,version));
+    CREATE INDEX IF NOT EXISTS instruction_versions_template_idx ON ai_instruction_versions(template_id);
     CREATE TABLE IF NOT EXISTS comments (id TEXT PRIMARY KEY, work_item_id TEXT NOT NULL, body TEXT NOT NULL, author_id TEXT NOT NULL, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS attachments (id TEXT PRIMARY KEY, work_item_id TEXT NOT NULL, filename TEXT NOT NULL, mime_type TEXT NOT NULL, size INTEGER NOT NULL, storage_key TEXT NOT NULL, variants_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY, work_item_id TEXT, actor_id TEXT, user_id TEXT, action TEXT NOT NULL, previous_state TEXT, new_state TEXT, correlation_id TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);

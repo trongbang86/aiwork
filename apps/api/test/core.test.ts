@@ -13,6 +13,21 @@ describe('AIWork core flows', () => {
   beforeEach(async () => { output=await mkdtemp(join(tmpdir(),'aiwork-')); app=buildApp({database:':memory:',uploadRoot:output}); await app.ready(); });
   afterEach(async () => app.close());
 
+  it('configures project templates with versioned instructions and applies a selected version on creation', async () => {
+    const auth={authorization:'Bearer dev-token'};
+    const templates=await app.inject('/v1/projects/DEMO/templates');
+    expect(templates.statusCode).toBe(200);
+    expect(templates.json().map((x:{itemType:string})=>x.itemType)).toEqual(['project','initiative','epic','story','task']);
+    const added=await app.inject({method:'POST',url:'/v1/projects/DEMO/templates/initiative/versions',headers:auth,payload:{name:'Focused',instructions:'Use focused initiative guidance.',comment:'Best for small delivery slices.',activate:true}});
+    expect(added.statusCode).toBe(201);
+    const created=await app.inject({method:'POST',url:'/v1/work-items',headers:auth,payload:{parentId:'proj_demo',type:'initiative',title:'Templated initiative',instructionVersionId:added.json().id}});
+    expect(created.statusCode).toBe(201);
+    expect((await app.inject(`/v1/work-items/${created.json().id}`)).json()).toMatchObject({description:'Describe the initiative outcome and measurable value.',aiInstructions:'Use focused initiative guidance.'});
+    const versions=(await app.inject('/v1/projects/DEMO/templates')).json().find((x:{itemType:string})=>x.itemType==='initiative').versions;
+    expect(versions.find((x:{id:string})=>x.id===added.json().id)).toMatchObject({comment:'Best for small delivery slices.',isActive:1});
+    expect(versions.filter((x:{isActive:number})=>x.isActive)).toHaveLength(1);
+  });
+
   it('merges hierarchy, state, and active actor instructions in exact order', async () => {
     const db=(app as unknown as {sqlite:import('better-sqlite3').Database}).sqlite; const now=new Date().toISOString();
     const insert=db.prepare('INSERT INTO work_items VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)');

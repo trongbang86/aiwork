@@ -1,0 +1,21 @@
+const assert=require('node:assert/strict');
+const {chromium}=require('playwright');
+const base=process.env.AIWORK_WEB_URL||'http://localhost:5173';
+(async()=>{const browser=await chromium.launch({headless:true});const context=await browser.newContext();const page=await context.newPage();try{
+  const marker=`Playwright template ${Date.now()}`;
+  const created=await context.request.post('http://localhost:4300/v1/projects/DEMO/templates/initiative/versions',{headers:{authorization:'Bearer dev-token'},data:{name:'E2E version',instructions:marker,comment:'Preferred by the browser test',activate:true}});
+  assert.equal(created.ok(),true);
+  await page.goto(base);
+  await page.getByRole('button',{name:/project DEMO AIWork Demo/}).click();
+  await page.getByRole('button',{name:'Add child'}).click();
+  await page.getByLabel('AI instruction version').selectOption((await created.json()).id);
+  const title=`Playwright templated initiative ${Date.now()}`;
+  await page.getByLabel('Title').fill(title);
+  assert.equal(await page.getByLabel('Version comment').inputValue(),'Preferred by the browser test');
+  await page.getByRole('button',{name:'Create initiative',exact:true}).click();
+  await page.getByRole('heading',{name:title}).waitFor();
+  const response=await context.request.get(`http://localhost:4300/v1/work-items?q=${encodeURIComponent(title)}`);
+  const item=(await response.json()).find(x=>x.title===title);
+  assert.equal(item.aiInstructions,marker);
+  console.log('PASS: project instruction version was selected, commented, and applied during creation.');
+}finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});

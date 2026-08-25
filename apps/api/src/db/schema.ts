@@ -29,6 +29,15 @@ export const workItems = sqliteTable('work_items', {
   title: text('title').notNull(), description: text('description'), aiInstructions: text('ai_instructions'),
   activeActorId: text('active_actor_id'), version: integer('version').notNull().default(1), ...timestamps,
 });
+export const projectTemplates = sqliteTable('project_templates', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), itemType: text('item_type').notNull(),
+  descriptionTemplate: text('description_template').notNull(), ...timestamps,
+}, (t) => [uniqueIndex('project_template_type').on(t.projectId, t.itemType)]);
+export const aiInstructionVersions = sqliteTable('ai_instruction_versions', {
+  id: text('id').primaryKey(), templateId: text('template_id').notNull(), version: integer('version').notNull(),
+  name: text('name').notNull(), instructions: text('instructions').notNull(), comment: text('comment').notNull().default(''),
+  isActive: integer('is_active', { mode:'boolean' }).notNull().default(false), ...timestamps,
+}, (t) => [uniqueIndex('template_instruction_version').on(t.templateId, t.version)]);
 export const comments = sqliteTable('comments', {
   id: text('id').primaryKey(), workItemId: text('work_item_id').notNull(), body: text('body').notNull(),
   authorId: text('author_id').notNull(), createdAt: text('created_at').notNull(),

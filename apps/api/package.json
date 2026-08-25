@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:ui": "node scripts/work-item-ui.e2e.cjs"
+    "test:ui": "node scripts/work-item-ui.e2e.cjs",
+    "test:templates-ui": "node scripts/template-ui.e2e.cjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
